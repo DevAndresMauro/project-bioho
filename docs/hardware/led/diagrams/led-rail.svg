@@ -1,0 +1,294 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 2140" width="1440" height="2140" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">
+  <rect width="1440" height="2140" fill="#070907"/>
+
+  <text x="28" y="44" font-size="22" font-weight="700" fill="#e6c229" letter-spacing=".04em">BIOHÓ · LED RAIL</text>
+  <text x="1412" y="40" font-size="12" fill="#7a7f78" text-anchor="end">host: display DevKitC — GPIO4 — one channel</text>
+  <text x="28" y="70" font-size="13" fill="#e8e6e3">SK6812 x6 — one uncut segment, one pixel per member</text>
+
+  <!-- A circuit -->
+  <rect x="24" y="92" width="1392" height="720" rx="8" fill="#0e120e" stroke="#e6c229" stroke-width="1.4"/>
+  <rect x="40" y="108" width="22" height="22" rx="4" fill="#e6c229"/>
+  <text x="51" y="124" font-size="13" font-weight="700" fill="#070907" text-anchor="middle">A</text>
+  <text x="72" y="125" font-size="15" font-weight="700" fill="#e6c229" letter-spacing=".03em">THE CIRCUIT — one data wire, one power domain</text>
+
+  <rect x="40" y="148" width="300" height="500" rx="6" fill="#141a14" stroke="#242e24" stroke-width="1.2"/>
+  <text x="190" y="180" font-size="15" font-weight="700" fill="#e8e6e3" text-anchor="middle">display DevKitC</text>
+  <text x="190" y="200" font-size="11" fill="#7a7f78" text-anchor="middle">(the vigía — already flashed)</text>
+
+  <rect x="70" y="232" width="88" height="28" rx="4" fill="#1a120e" stroke="#e85d4c" stroke-width="1.2"/>
+  <text x="114" y="251" font-size="13" font-weight="700" fill="#e85d4c" text-anchor="middle">5V</text>
+  <line x1="158" y1="246" x2="310" y2="246" stroke="#e85d4c" stroke-width="2"/>
+  <text x="228" y="238" font-size="11" fill="#e85d4c" text-anchor="middle">red</text>
+
+  <rect x="70" y="292" width="88" height="28" rx="4" fill="#141414" stroke="#a8a6a3" stroke-width="1.2"/>
+  <text x="114" y="311" font-size="13" font-weight="700" fill="#a8a6a3" text-anchor="middle">GND</text>
+  <line x1="158" y1="306" x2="310" y2="306" stroke="#a8a6a3" stroke-width="2"/>
+  <text x="228" y="298" font-size="11" fill="#a8a6a3" text-anchor="middle">black</text>
+
+  <rect x="56" y="352" width="116" height="28" rx="4" fill="#0e1a12" stroke="#43e86a" stroke-width="1.2"/>
+  <text x="114" y="371" font-size="13" font-weight="700" fill="#43e86a" text-anchor="middle">GPIO4</text>
+  <line x1="172" y1="366" x2="310" y2="366" stroke="#43e86a" stroke-width="2"/>
+  <text x="240" y="358" font-size="11" fill="#43e86a" text-anchor="middle">green</text>
+  <text x="190" y="404" font-size="11" fill="#7a7f78" text-anchor="middle">dupont f-f to header</text>
+  <text x="190" y="620" font-size="11" fill="#7a7f78" text-anchor="middle">USB-C stays on charger C4</text>
+
+  <rect x="356" y="148" width="430" height="500" rx="6" fill="#141a14" stroke="#242e24" stroke-width="1.2"/>
+  <text x="571" y="180" font-size="15" font-weight="700" fill="#e8e6e3" text-anchor="middle">74AHCT125 shifter</text>
+  <text x="571" y="200" font-size="11" fill="#7a7f78" text-anchor="middle">(stripboard, same stock as the fuse board)</text>
+
+  <rect x="500" y="224" width="142" height="118" rx="6" fill="#0e120e" stroke="#4d7de0" stroke-width="1.2"/>
+  <path d="M541 224 a30 16 0 0 1 60 0" fill="none" stroke="#7a7f78" stroke-width="1.2"/>
+  <text x="522" y="258" font-size="12" fill="#43e86a">1</text>
+  <text x="522" y="278" font-size="12" fill="#43e86a">2</text>
+  <text x="522" y="298" font-size="12" fill="#43e86a">3</text>
+  <text x="571" y="286" font-size="13" font-weight="700" fill="#e8e6e3" text-anchor="middle">AHCT125</text>
+
+  <text x="571" y="372" font-size="12" fill="#e6c229" text-anchor="middle">pins 1, 4, 10, 13 = /OE all to GND</text>
+  <text x="571" y="394" font-size="12" fill="#e8e6e3" text-anchor="middle">pin 14 VCC = 5V — pin 7 = GND</text>
+  <text x="571" y="432" font-size="13" fill="#e8e6e3" text-anchor="middle">Y1 (pin 3) leaves through</text>
+  <text x="571" y="456" font-size="15" font-weight="700" fill="#e8e6e3" text-anchor="middle">330R (470 = the spare)</text>
+  <text x="571" y="490" font-size="12" fill="#7a7f78" text-anchor="middle">JST 3-pin OUT = detachable rail</text>
+
+  <rect x="802" y="148" width="590" height="500" rx="6" fill="#141a14" stroke="#242e24" stroke-width="1.2"/>
+  <text x="1097" y="176" font-size="12" fill="#7a7f78" text-anchor="middle">clear silicone sleeve stays on = diffuser</text>
+
+  <text x="860" y="214" font-size="12" font-weight="700" fill="#43e86a">330R</text>
+  <line x1="830" y1="246" x2="900" y2="246" stroke="#43e86a" stroke-width="2"/>
+  <rect x="900" y="228" width="36" height="36" rx="4" fill="#0e120e" stroke="#a8a6a3" stroke-width="1.2"/>
+  <rect x="940" y="234" width="22" height="24" rx="3" fill="#1c221c" stroke="#242e24"/>
+  <text x="948" y="330" font-size="12" font-weight="700" fill="#e8e6e3">factory JST</text>
+  <text x="948" y="346" font-size="11" fill="#7a7f78">mating pair</text>
+  <text x="830" y="378" font-size="12" fill="#e8e6e3">counterpart leads to board:</text>
+  <text x="830" y="398" font-size="12" fill="#e6c229">red=5V  green=330R  black=GND</text>
+  <text x="830" y="416" font-size="11" fill="#7a7f78">(meter-verify vs strip silk)</text>
+
+  <rect x="1004" y="204" width="368" height="100" rx="6" fill="#0e120e" stroke="#242e24" stroke-width="1.2"/>
+  <circle cx="1036" cy="236" r="9" fill="#e6c229"/>
+  <circle cx="1090" cy="236" r="9" fill="#43e86a"/>
+  <circle cx="1144" cy="236" r="9" fill="#43e86a"/>
+  <circle cx="1198" cy="236" r="9" fill="#43e86a"/>
+  <circle cx="1252" cy="236" r="9" fill="#4d7de0"/>
+  <circle cx="1306" cy="236" r="9" fill="#a05de0"/>
+  <line x1="1348" y1="212" x2="1348" y2="268" stroke="#e85d4c" stroke-width="1.4" stroke-dasharray="3 3"/>
+  <text x="1036" y="288" font-size="9" fill="#7a7f78" text-anchor="middle">px0 N1</text>
+  <text x="1090" y="288" font-size="9" fill="#7a7f78" text-anchor="middle">px1 N2</text>
+  <text x="1144" y="288" font-size="9" fill="#7a7f78" text-anchor="middle">px2 N3</text>
+  <text x="1198" y="288" font-size="9" fill="#7a7f78" text-anchor="middle">px3 N4</text>
+  <text x="1252" y="288" font-size="9" fill="#7a7f78" text-anchor="middle">vigía</text>
+  <text x="1306" y="288" font-size="9" fill="#7a7f78" text-anchor="middle">cabildo</text>
+  <text x="1368" y="318" font-size="11" fill="#e85d4c" text-anchor="end">the ONE cut — after LED 6</text>
+
+  <text x="1097" y="456" font-size="13" font-weight="700" fill="#43e86a" text-anchor="middle">the strip's own copper is the chain — zero link wires, zero tinning</text>
+  <text x="1097" y="480" font-size="12" fill="#a8a6a3" text-anchor="middle">raw red/grey injection pair: capped + twist-tied (6 px needs no injection)</text>
+  <text x="1097" y="500" font-size="12" fill="#a8a6a3" text-anchor="middle">6 px full white uncapped = 480 mA — the fw cap is the budget</text>
+  <text x="1097" y="520" font-size="12" fill="#a8a6a3" text-anchor="middle">remainder reel = spare, cut fresh at its own pad line if ever used</text>
+  <text x="1097" y="552" font-size="12" fill="#e6c229" text-anchor="middle">a compact status row</text>
+  <text x="1097" y="572" font-size="12" fill="#e6c229" text-anchor="middle">it glows through the front slot</text>
+
+  <text x="720" y="700" font-size="14" font-weight="700" fill="#e6c229" text-anchor="middle">Uncut segment + factory JST pair. One host, one wire.</text>
+  <text x="720" y="726" font-size="12" fill="#a8a6a3" text-anchor="middle">Power all from the DevKitC 5V pin = one domain, no ground loops. Firmware caps brightness at 25% (worst case under 100 mA).</text>
+
+  <!-- B shifter -->
+  <rect x="24" y="832" width="860" height="620" rx="8" fill="#0e120e" stroke="#43e86a" stroke-width="1.4"/>
+  <rect x="40" y="848" width="22" height="22" rx="4" fill="#43e86a"/>
+  <text x="51" y="864" font-size="13" font-weight="700" fill="#070907" text-anchor="middle">B</text>
+  <text x="72" y="865" font-size="15" font-weight="700" fill="#43e86a" letter-spacing=".03em">SHIFTER BOARD — DIP-14, exact nets</text>
+  <text x="40" y="908" font-size="12" fill="#e8e6e3">74AHCT125 — notch up = pin 1 top-left</text>
+
+  <!-- pin rows: y start 930, step 36 -->
+  <g font-size="12" fill="#e8e6e3">
+    <rect x="40" y="924" width="22" height="20" rx="3" fill="#141a14" stroke="#242e24"/>
+    <text x="51" y="938" text-anchor="middle" font-size="11" fill="#e8e6e3">1</text>
+    <text x="72" y="939" fill="#e6c229">/1OE</text>
+    <text x="130" y="939">to GND</text>
+    <rect x="430" y="924" width="22" height="20" rx="3" fill="#141a14" stroke="#242e24"/>
+    <text x="441" y="938" text-anchor="middle" font-size="11">14</text>
+    <text x="462" y="939" fill="#e85d4c">VCC</text>
+    <text x="510" y="939">to 5V rail (red)</text>
+
+    <rect x="40" y="960" width="22" height="20" rx="3" fill="#141a14" stroke="#242e24"/>
+    <text x="51" y="974" text-anchor="middle" font-size="11">2</text>
+    <text x="72" y="975" fill="#43e86a">1A</text>
+    <text x="110" y="975">from GPIO4 (green)</text>
+    <rect x="430" y="960" width="22" height="20" rx="3" fill="#141a14" stroke="#242e24"/>
+    <text x="441" y="974" text-anchor="middle" font-size="11">13</text>
+    <text x="462" y="975" fill="#e6c229">/4OE</text>
+    <text x="520" y="975">to GND</text>
+
+    <rect x="40" y="996" width="22" height="20" rx="3" fill="#141a14" stroke="#242e24"/>
+    <text x="51" y="1010" text-anchor="middle" font-size="11">3</text>
+    <text x="72" y="1011" fill="#43e86a">1Y</text>
+    <text x="110" y="1011">to 330R to Din</text>
+    <rect x="430" y="996" width="22" height="20" rx="3" fill="#141a14" stroke="#242e24"/>
+    <text x="441" y="1010" text-anchor="middle" font-size="11">12</text>
+    <text x="462" y="1011">4A</text>
+    <text x="500" y="1011" fill="#a8a6a3">to GND (quiet)</text>
+
+    <rect x="40" y="1032" width="22" height="20" rx="3" fill="#141a14" stroke="#242e24"/>
+    <text x="51" y="1046" text-anchor="middle" font-size="11">4</text>
+    <text x="72" y="1047" fill="#e6c229">/2OE</text>
+    <text x="130" y="1047">to GND</text>
+    <rect x="430" y="1032" width="22" height="20" rx="3" fill="#141a14" stroke="#242e24"/>
+    <text x="441" y="1046" text-anchor="middle" font-size="11">11</text>
+    <text x="462" y="1047">4Y</text>
+    <text x="500" y="1047" fill="#7a7f78">leave open</text>
+
+    <rect x="40" y="1068" width="22" height="20" rx="3" fill="#141a14" stroke="#242e24"/>
+    <text x="51" y="1082" text-anchor="middle" font-size="11">5</text>
+    <text x="72" y="1083">2A</text>
+    <text x="110" y="1083" fill="#a8a6a3">to GND (quiet)</text>
+    <rect x="430" y="1068" width="22" height="20" rx="3" fill="#141a14" stroke="#242e24"/>
+    <text x="441" y="1082" text-anchor="middle" font-size="11">10</text>
+    <text x="462" y="1083" fill="#e6c229">/3OE</text>
+    <text x="520" y="1083">to GND</text>
+
+    <rect x="40" y="1104" width="22" height="20" rx="3" fill="#141a14" stroke="#242e24"/>
+    <text x="51" y="1118" text-anchor="middle" font-size="11">6</text>
+    <text x="72" y="1119">2Y</text>
+    <text x="110" y="1119" fill="#7a7f78">leave open</text>
+    <rect x="430" y="1104" width="22" height="20" rx="3" fill="#141a14" stroke="#242e24"/>
+    <text x="441" y="1118" text-anchor="middle" font-size="11">9</text>
+    <text x="462" y="1119">3A</text>
+    <text x="500" y="1119" fill="#a8a6a3">to GND (quiet)</text>
+
+    <rect x="40" y="1140" width="22" height="20" rx="3" fill="#141a14" stroke="#242e24"/>
+    <text x="51" y="1154" text-anchor="middle" font-size="11">7</text>
+    <text x="72" y="1155">GND</text>
+    <text x="116" y="1155">to black rail</text>
+    <rect x="430" y="1140" width="22" height="20" rx="3" fill="#141a14" stroke="#242e24"/>
+    <text x="441" y="1154" text-anchor="middle" font-size="11">8</text>
+    <text x="462" y="1155">3Y</text>
+    <text x="500" y="1155" fill="#7a7f78">leave open</text>
+  </g>
+
+  <text x="40" y="1200" font-size="12" fill="#e6c229">Any floating /OE = dead outputs. All four go to GND even though</text>
+  <text x="40" y="1218" font-size="12" fill="#e6c229">only channel 1 is used. Unused A-inputs to GND; unused Y stay open.</text>
+  <text x="40" y="1252" font-size="12" fill="#a8a6a3">Build order: power rails — tack pins 1+8 corners — seat flat — remaining 12</text>
+  <text x="40" y="1270" font-size="12" fill="#a8a6a3">pins (3 s max each) — 330R — wire tails — JST socket last.</text>
+  <text x="40" y="1304" font-size="12" fill="#7a7f78">No IC socket: the chip solders direct. AHCT is tough; keep dwell short.</text>
+
+  <!-- C segment -->
+  <rect x="900" y="832" width="516" height="620" rx="8" fill="#0e120e" stroke="#4d7de0" stroke-width="1.4"/>
+  <rect x="916" y="848" width="22" height="22" rx="4" fill="#4d7de0"/>
+  <text x="927" y="864" font-size="13" font-weight="700" fill="#070907" text-anchor="middle">C</text>
+  <text x="948" y="865" font-size="15" font-weight="700" fill="#4d7de0" letter-spacing=".03em">SEGMENT PREP — one cut, no solder</text>
+
+  <text x="1158" y="908" font-size="11" fill="#7a7f78" text-anchor="middle">arrow = data flow: the factory pigtail end IS the input</text>
+  <rect x="928" y="924" width="100" height="72" rx="6" fill="#141a14" stroke="#242e24"/>
+  <circle cx="978" cy="950" r="8" fill="#242e24"/>
+  <line x1="952" y1="974" x2="1004" y2="974" stroke="#a8a6a3" stroke-width="1.4"/>
+  <path d="M996 968 l8 6 l-8 6" fill="none" stroke="#a8a6a3" stroke-width="1.4"/>
+  <rect x="1044" y="924" width="100" height="72" rx="6" fill="#141a14" stroke="#242e24"/>
+  <circle cx="1094" cy="950" r="8" fill="#242e24"/>
+  <line x1="1068" y1="974" x2="1120" y2="974" stroke="#a8a6a3" stroke-width="1.4"/>
+  <path d="M1112 968 l8 6 l-8 6" fill="none" stroke="#a8a6a3" stroke-width="1.4"/>
+  <line x1="1164" y1="920" x2="1164" y2="1004" stroke="#e85d4c" stroke-width="1.6" stroke-dasharray="3 3"/>
+  <rect x="1184" y="924" width="100" height="72" rx="6" fill="#141a14" stroke="#242e24"/>
+  <circle cx="1234" cy="950" r="8" fill="#242e24"/>
+  <line x1="1208" y1="974" x2="1260" y2="974" stroke="#a8a6a3" stroke-width="1.4"/>
+  <path d="M1252 968 l8 6 l-8 6" fill="none" stroke="#a8a6a3" stroke-width="1.4"/>
+  <text x="1158" y="1024" font-size="12" fill="#e85d4c" text-anchor="middle">the ONE cut — trace gap</text>
+
+  <text x="924" y="1064" font-size="12" font-weight="700" fill="#43e86a">Pitch</text>
+  <text x="924" y="1084" font-size="12" fill="#e8e6e3">CONFIRMED 30/m: 33.3 mm — bar ~200 mm</text>
+  <text x="924" y="1102" font-size="12" fill="#e8e6e3">ruler check through the sleeve</text>
+  <text x="924" y="1130" font-size="12" font-weight="700" fill="#43e86a">The one cut</text>
+  <text x="924" y="1150" font-size="12" fill="#e8e6e3">ONE firm snip through sleeve+strip in the TRACE GAP</text>
+  <text x="924" y="1168" font-size="12" fill="#e8e6e3">3–4 mm past LED 6's pads</text>
+  <text x="924" y="1194" font-size="12" font-weight="700" fill="#43e86a">Why the gap</text>
+  <text x="924" y="1212" font-size="12" fill="#a8a6a3">no exposed copper at either lip — nothing to wrap,</text>
+  <text x="924" y="1230" font-size="12" fill="#a8a6a3">no tape owned or needed</text>
+  <text x="924" y="1256" font-size="12" font-weight="700" fill="#e6c229">Verify FIRST</text>
+  <text x="924" y="1274" font-size="12" fill="#e6c229">BEFORE the cut, via the far-end connector:</text>
+  <text x="924" y="1292" font-size="12" fill="#e6c229">red+gnd beep reel-long, green by elimination</text>
+  <text x="924" y="1316" font-size="12" font-weight="700" fill="#43e86a">Cap the tips</text>
+  <text x="924" y="1334" font-size="12" fill="#e6c229">injection pair: trim, sleeve with salvaged spool</text>
+  <text x="924" y="1352" font-size="12" fill="#e6c229">insulation, fold, wire twist-tie</text>
+  <text x="924" y="1376" font-size="12" font-weight="700" fill="#e85d4c">Live metal</text>
+  <text x="924" y="1394" font-size="12" fill="#e85d4c">tips join the strip power rails — JST never mates until capped</text>
+
+  <!-- D verification -->
+  <rect x="24" y="1472" width="1392" height="640" rx="8" fill="#0e120e" stroke="#a05de0" stroke-width="1.4"/>
+  <rect x="40" y="1488" width="22" height="22" rx="4" fill="#a05de0"/>
+  <text x="51" y="1504" font-size="13" font-weight="700" fill="#070907" text-anchor="middle">D</text>
+  <text x="72" y="1505" font-size="15" font-weight="700" fill="#a05de0" letter-spacing=".03em">VERIFICATION — nothing powers up unmeasured</text>
+
+  <text x="40" y="1544" font-size="11" fill="#7a7f78">CHECK</text>
+  <text x="150" y="1544" font-size="11" fill="#7a7f78">WHEN</text>
+  <text x="420" y="1544" font-size="11" fill="#7a7f78">MEASURE / DO</text>
+  <text x="900" y="1544" font-size="11" fill="#7a7f78">PASS READING</text>
+
+  <g font-size="12">
+    <rect x="36" y="1556" width="1368" height="32" rx="3" fill="#141a14"/>
+    <text x="40" y="1576" fill="#43e86a">board</text>
+    <text x="150" y="1576" fill="#a8a6a3">shifter, unpowered</text>
+    <text x="420" y="1576" fill="#e8e6e3">VCC to GND resistance</text>
+    <text x="900" y="1576" fill="#e8e6e3">no short: &gt;10 kohm (open is fine)</text>
+
+    <text x="40" y="1608" fill="#43e86a">board</text>
+    <text x="150" y="1608" fill="#a8a6a3">shifter, unpowered</text>
+    <text x="420" y="1608" fill="#e8e6e3">each /OE (1, 4, 10, 13) to GND</text>
+    <text x="900" y="1608" fill="#e8e6e3">0 ohm beep, all four</text>
+
+    <rect x="36" y="1620" width="1368" height="32" rx="3" fill="#141a14"/>
+    <text x="40" y="1640" fill="#43e86a">board</text>
+    <text x="150" y="1640" fill="#a8a6a3">shifter, unpowered</text>
+    <text x="420" y="1640" fill="#e8e6e3">1A tail to GPIO4 dupont, Y1 through R to JST data pin</text>
+    <text x="900" y="1640" fill="#e8e6e3">beep / ~330 ohm</text>
+
+    <text x="40" y="1672" fill="#43e86a">reel</text>
+    <text x="150" y="1672" fill="#a8a6a3">whole reel, pre-cut</text>
+    <text x="420" y="1672" fill="#e8e6e3">counterpart red+gnd tips to FAR-END connector</text>
+    <text x="900" y="1672" fill="#e8e6e3">both beep reel-long — green by elimination</text>
+
+    <rect x="36" y="1684" width="1368" height="32" rx="3" fill="#141a14"/>
+    <text x="40" y="1704" fill="#43e86a">bar</text>
+    <text x="150" y="1704" fill="#a8a6a3">segment, unpowered</text>
+    <text x="420" y="1704" fill="#e8e6e3">green lead to red lead + green lead to black lead</text>
+    <text x="900" y="1704" fill="#e85d4c">OPEN both — a beep = bad pigtail</text>
+
+    <text x="40" y="1736" fill="#43e86a">bar</text>
+    <text x="150" y="1736" fill="#a8a6a3">segment, unpowered</text>
+    <text x="420" y="1736" fill="#e8e6e3">injection tips sleeved + folded + twist-tied</text>
+    <text x="900" y="1736" fill="#e6c229">visual — zero bare copper anywhere</text>
+
+    <rect x="36" y="1748" width="1368" height="32" rx="3" fill="#141a14"/>
+    <text x="40" y="1768" fill="#e6c229">power</text>
+    <text x="150" y="1768" fill="#a8a6a3">first power, JST UNPLUGGED</text>
+    <text x="420" y="1768" fill="#e8e6e3">DevKitC USB on — board 5V rail to GND rail</text>
+    <text x="900" y="1768" fill="#e8e6e3">4.9 – 5.2 V DC</text>
+
+    <text x="40" y="1800" fill="#e6c229">settle</text>
+    <text x="150" y="1800" fill="#a8a6a3">10 s settle</text>
+    <text x="420" y="1800" fill="#e8e6e3">nothing lit, nothing warm (finger on each px + chip)</text>
+    <text x="900" y="1800" fill="#e8e6e3">cold and dark = pass</text>
+
+    <rect x="36" y="1812" width="1368" height="32" rx="3" fill="#141a14"/>
+    <text x="40" y="1832" fill="#e6c229">parade</text>
+    <text x="150" y="1832" fill="#a8a6a3">JST mated + reflash display</text>
+    <text x="420" y="1832" fill="#e8e6e3">the boot parade fires automatically</text>
+    <text x="900" y="1832" fill="#e8e6e3">dots walk px0 to px5 — white, green, blue, red</text>
+
+    <text x="40" y="1864" fill="#e6c229">roles</text>
+    <text x="150" y="1864" fill="#a8a6a3">swarm live (~5 s later)</text>
+    <text x="420" y="1864" fill="#e8e6e3">roles paint</text>
+    <text x="900" y="1864" font-size="11" fill="#e8e6e3">capitán gold — cimarrón faint green — vigía blue — cabildo purple</text>
+
+    <rect x="36" y="1876" width="1368" height="32" rx="3" fill="#141a14"/>
+    <text x="40" y="1896" fill="#e85d4c">kill</text>
+    <text x="150" y="1896" fill="#a8a6a3">kill test</text>
+    <text x="420" y="1896" fill="#e8e6e3">pull any node's USB-C, then replug</text>
+    <text x="900" y="1896" fill="#43e86a">its px RED within 3 s — the role colour returns on rejoin</text>
+
+    <text x="40" y="1928" fill="#43e86a">release</text>
+    <text x="150" y="1928" fill="#a8a6a3">release test</text>
+    <text x="420" y="1928" fill="#e8e6e3">push an OTA to any node from the PC</text>
+    <text x="900" y="1928" fill="#e6c229">that px holds AMBER for the transfer</text>
+  </g>
+
+  <text x="40" y="1972" font-size="12" fill="#e85d4c">TROUBLE: sweep dark = redo first power, then Y1–330R–JST path + reseat the plug — wrong colours = GRBW order, firmware-side fix</text>
+  <text x="40" y="1994" font-size="12" fill="#a8a6a3">one px dark mid-bar = strip fault (cut a fresh segment) — flicker = reseat JST or 470–1000 µF at head (order only if seen)</text>
+
+  <text x="924" y="1418" font-size="12" font-weight="700" fill="#43e86a">No solder here</text>
+  <text x="924" y="1436" font-size="12" fill="#43e86a">iron stays cold — scissors + meter only</text>
+</svg>

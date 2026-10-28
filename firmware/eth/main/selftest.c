@@ -12,12 +12,12 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "serve.h"
-#include "mask.h"
+#include "crown.h"
 #include "splice.h"
 #include "blackbox.h"
 #include "selftest.h"
 
-static const char *TAG = "bohun_selftest";
+static const char *TAG = "bioho_selftest";
 
 /* Long enough to outlive a boot-time crash and a first real handshake; short
  * enough that a good release settles quickly. The dynamic-buffer panic hit
@@ -62,7 +62,7 @@ static void selftest_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(500));   /* let the record reach flash */
             esp_restart();
         }
-        /* mask_link_up(), NOT !mask_link_lost(): the latter is false for a
+        /* crown_link_up(), NOT !crown_link_lost(): the latter is false for a
          * link that never came up, and httpd binds before any cable talks -
          * together they would certify an image with no working wire. */
         /* splice_is_up() joins the gate: on a balancing fleet
@@ -70,14 +70,14 @@ static void selftest_task(void *arg)
          * httpd and a dead splicer serves nobody - the exact stable-but-serving-
          * nothing shape D8 was written after. Weak-stubbed true where there is
          * no splicer, so this is a no-op for observer-style builds. */
-        if (serve_is_ready() && mask_link_up() && splice_is_up()) {
+        if (serve_is_ready() && crown_link_up() && splice_is_up()) {
             healthy_s += POLL_MS / 1000;
         } else {
             /* any stumble restarts the clock: we want SOAK_S of continuous
              * health, not SOAK_S of intermittent luck */
             if (healthy_s) {
                 ESP_LOGW(TAG, "trial reset (serving=%d link=%d)",
-                         serve_is_ready(), mask_link_up());
+                         serve_is_ready(), crown_link_up());
             }
             healthy_s = 0;
         }

@@ -2,7 +2,7 @@
 #include "lvgl.h"
 #include "swarm.h"
 
-/* mission-control dashboard for the 800x480 kobzar panel.
+/* mission-control dashboard for the 800x480 cabildo panel.
  * ui_init builds the static tree (call once, under lvgl_port_lock);
  * ui_update repaints it from a fresh swarm snapshot (locked internally). */
 void ui_init(lv_display_t *disp);

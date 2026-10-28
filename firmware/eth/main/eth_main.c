@@ -1,4 +1,4 @@
-/* bohun - the boot sequencer: W5500 up, then the whole node stack.
+/* bioho - the boot sequencer: W5500 up, then the whole node stack.
  * Init glue = espressif/ethernet_init component (pinned); handlers mirror
  * ESP-IDF v6.0.2 examples/ethernet/basic. Nothing here is original except
  * the boot banner - which is the point: reuse the vendor-proven path.
@@ -15,14 +15,14 @@
 #include "swarm_identity.h"
 #include "swarm.h"
 #include "serve.h"
-#include "mask.h"
+#include "crown.h"
 #include "blackbox.h"
 #include "vitals.h"
 #include "selftest.h"
 #include "splice.h"
 #include "sdkconfig.h"
 
-static const char *TAG = "bohun_eth";
+static const char *TAG = "bioho_eth";
 
 static void eth_event_handler(void *arg, esp_event_base_t event_base,
                               int32_t event_id, void *event_data)
@@ -36,12 +36,12 @@ static void eth_event_handler(void *arg, esp_event_base_t event_base,
         ESP_LOGI(TAG, "Ethernet Link Up");
         ESP_LOGI(TAG, "Ethernet HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
                  mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-        mask_on_link_up();
+        crown_on_link_up();
         break;
     case ETHERNET_EVENT_DISCONNECTED:
         ESP_LOGI(TAG, "Ethernet Link Down");
-        mask_set_ip(0);
-        mask_on_link_down();   /* the election must see this, or a dead leader keeps the mask */
+        crown_set_ip(0);
+        crown_on_link_down();   /* the election must see this, or a dead leader keeps the crown */
         break;
     case ETHERNET_EVENT_START:
         ESP_LOGI(TAG, "Ethernet Started");
@@ -66,13 +66,13 @@ static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
     ESP_LOGI(TAG, "ETHMASK:" IPSTR, IP2STR(&ip_info->netmask));
     ESP_LOGI(TAG, "ETHGW:" IPSTR, IP2STR(&ip_info->gw));
     ESP_LOGI(TAG, "~~~~~~~~~~~");
-    mask_set_ip(ip_info->ip.addr);
-    mask_on_got_ip();
+    crown_set_ip(ip_info->ip.addr);
+    crown_on_got_ip();
 }
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "bohun node firmware (eth + TLS serve + swarm control plane)");
+    ESP_LOGI(TAG, "bioho node firmware (eth + TLS serve + swarm control plane)");
 
     esp_err_t nvs = nvs_flash_init();
     if (nvs == ESP_ERR_NVS_NO_FREE_PAGES || nvs == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -93,12 +93,12 @@ void app_main(void)
     esp_netif_t *eth_netif = esp_netif_new(&cfg);
     ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handles[0])));
     const swarm_member_t *self = swarm_self();
-    ESP_ERROR_CHECK(esp_netif_set_hostname(eth_netif, self ? self->hostname : CONFIG_BOHUN_HOSTNAME));
+    ESP_ERROR_CHECK(esp_netif_set_hostname(eth_netif, self ? self->hostname : CONFIG_BIOHO_HOSTNAME));
 
-    /* the mask module needs the handle+netif; own identity captured here.
-     * boot proceeds on the OWN identity (reachable) - the mask is worn later,
+    /* the crown module needs the handle+netif; own identity captured here.
+     * boot proceeds on the OWN identity (reachable) - the crown is worn later,
      * only if/when this node is elected leader. */
-    mask_init(eth_handles[0], eth_netif);
+    crown_init(eth_handles[0], eth_netif);
 
     ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL));
@@ -106,7 +106,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_eth_start(eth_handles[0]));
 
     /* Radio first, server second: the fleet gets a truthful serving=0 window
-     * while TLS binds (the rail's amber "booting"). Safe only because the
+     * while TLS binds (the rail's fast white blink, "booting"). Safe only because the
      * election gates on serve_is_ready() - exposure without candidacy. */
     /* the recorder mounts before anything can fail interestingly */
     blackbox_init();
@@ -119,8 +119,8 @@ void app_main(void)
     selftest_start();
 
     /* EVERY blade runs the splicer, permanently. It binds 0.0.0.0:443, but
-     * only the blade wearing the mask holds the address the router forwards
-     * to - so the mask alone decides who receives public traffic, and a
+     * only the blade wearing the crown holds the address the router forwards
+     * to - so the crown alone decides who receives public traffic, and a
      * leadership change moves the load with ZERO listener churn. No moving
      * parts in this path: starting and stopping listeners on election once
      * produced a 272-election flap. */

@@ -9,7 +9,7 @@
 #
 # Prints "NAME<TAB>IP" per line, sorted. Cache it: SUBNET=192.0.2 ./fleet_discover.sh
 set -u
-SUBNET="${SUBNET:-$(grep BOHUN_MASK_IP "$(dirname "$0")/../firmware/eth/main/secrets.h" 2>/dev/null | cut -d'"' -f2 | cut -d. -f1-3)}"
+SUBNET="${SUBNET:-$(grep BIOHO_CROWN_IP "$(dirname "$0")/../firmware/eth/main/secrets.h" 2>/dev/null | cut -d'"' -f2 | cut -d. -f1-3)}"
 
 probe() {
   local ip="$1"

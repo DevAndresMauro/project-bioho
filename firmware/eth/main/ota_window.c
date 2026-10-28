@@ -22,11 +22,11 @@
 
 /* older secrets.h files predate the WiFi fields - build anyway, refuse at
  * runtime with a message on the glass rather than a compile error */
-#ifndef BOHUN_WIFI_SSID
-#define BOHUN_WIFI_SSID ""
+#ifndef BIOHO_WIFI_SSID
+#define BIOHO_WIFI_SSID ""
 #endif
-#ifndef BOHUN_WIFI_PASS
-#define BOHUN_WIFI_PASS ""
+#ifndef BIOHO_WIFI_PASS
+#define BIOHO_WIFI_PASS ""
 #endif
 
 #define WINDOW_S    600     /* the window always expires - standby's law */
@@ -35,7 +35,7 @@
 #define TRIAL_S     60      /* pending-verify: seconds alive before valid */
 #define DEADLINE_S  300     /* unmarked past this -> reboot -> rollback */
 
-static const char *TAG = "bohun_otaw";
+static const char *TAG = "bioho_otaw";
 
 extern const uint8_t servercert_start[] asm("_binary_servercert_pem_start");
 extern const uint8_t servercert_end[]   asm("_binary_servercert_pem_end");
@@ -48,12 +48,12 @@ static int64_t  s_expiry_us;
 static httpd_handle_t s_srv;
 static esp_netif_t *s_netif;
 
-/* ---- /page: raw write into the kobzar's strip partition ------------------ */
+/* ---- /page: raw write into the cabildo's strip partition ------------------ */
 
 static esp_err_t page_post_handler(httpd_req_t *req)
 {
-    char key[BOHUN_KEY_BUF] = {0};
-    if (httpd_req_get_hdr_value_str(req, "X-Bohun-Key", key, sizeof(key)) != ESP_OK ||
+    char key[BIOHO_KEY_BUF] = {0};
+    if (httpd_req_get_hdr_value_str(req, "X-Bioho-Key", key, sizeof(key)) != ESP_OK ||
         !ota_key_ok(key)) {
         httpd_resp_set_status(req, "403 Forbidden");
         httpd_resp_sendstr(req, "bad key\n");
@@ -187,8 +187,8 @@ static void window_task(void *arg)
     esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_evt_cb, NULL);
 
     wifi_config_t wc = { 0 };
-    strlcpy((char *)wc.sta.ssid, BOHUN_WIFI_SSID, sizeof(wc.sta.ssid));
-    strlcpy((char *)wc.sta.password, BOHUN_WIFI_PASS, sizeof(wc.sta.password));
+    strlcpy((char *)wc.sta.ssid, BIOHO_WIFI_SSID, sizeof(wc.sta.ssid));
+    strlcpy((char *)wc.sta.password, BIOHO_WIFI_PASS, sizeof(wc.sta.password));
     esp_wifi_set_config(WIFI_IF_STA, &wc);
     esp_wifi_connect();
 
@@ -252,9 +252,9 @@ void ota_window_open(void)
     if (s_state != OTAW_IDLE && s_state != OTAW_NOCREDS && s_state != OTAW_FAILED) {
         return;   /* already open */
     }
-    if (BOHUN_WIFI_SSID[0] == '\0') {
+    if (BIOHO_WIFI_SSID[0] == '\0') {
         s_state = OTAW_NOCREDS;
-        ESP_LOGE(TAG, "no BOHUN_WIFI_SSID in secrets.h - window refused");
+        ESP_LOGE(TAG, "no BIOHO_WIFI_SSID in secrets.h - window refused");
         return;
     }
     /* 8 KB: this stack carries httpd_ssl_start's mbedtls cert parsing */

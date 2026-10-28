@@ -1,4 +1,4 @@
-# mission (4.3" rada): dual OTA slots since the OTA-window era (doc 38).
+# mission (4.3" cabildo): dual OTA slots since the OTA-window era (doc 38).
 # The page strip keeps its own single partition - interrupted page writes are
 # re-pushed, only the app needs rollback. App slots are 1.94 MB each (app is
 # ~1.3 MB); the strip partition holds 12.19 MB. Table change = one USB flash.

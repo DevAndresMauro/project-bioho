@@ -8,7 +8,7 @@ idf_component_register(
     SRCS "mission_main.c" "panel.c" "ui.c"
          "../../eth/main/swarm.c"
          "../../eth/main/swarm_identity.c"
-         "../../eth/main/mask.c"
+         "../../eth/main/crown.c"
          "../../eth/main/blackbox.c"
          "../../eth/main/vitals.c"
          "../../eth/main/ota.c"
@@ -28,4 +28,4 @@ if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/page_strip.bin")
     message(WARNING "page_strip.bin missing - run firmware/mission/render_page_asset.py before idf.py flash (the page tile shows 'partition empty' until then)")
 endif()
 esptool_py_flash_to_partition(flash "page" "${CMAKE_CURRENT_SOURCE_DIR}/page_strip.bin")
-# arms_84x104.bin = Herb Viyska Zaporozkoho baked small (render_arms_asset.py) - tiny, rides rodata
+# arms_84x104.bin = the palenque seal baked small (render_arms_asset.py) - tiny, rides rodata

@@ -7,7 +7,7 @@ idf_component_register(
     SRCS "display_main.c" "tft.c" "led.c"
          "../../eth/main/swarm.c"
          "../../eth/main/swarm_identity.c"
-         "../../eth/main/mask.c"
+         "../../eth/main/crown.c"
          "../../eth/main/blackbox.c"
          "../../eth/main/vitals.c"
          "../../eth/main/ota.c"

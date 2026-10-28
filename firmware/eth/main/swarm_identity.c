@@ -1,4 +1,4 @@
-/* bohun swarm identity: who am I, who are my peers.
+/* bioho swarm identity: who am I, who are my peers.
  * Keyed on the eFuse base MAC (= the Wi-Fi STA MAC, base+0) against the
  * fleet ledger below. One binary per BOARD TYPE; per-node identity comes
  * from silicon, not from the build. To adopt a new board, add its MAC here
@@ -19,12 +19,12 @@ static const swarm_member_t FLEET[] = {
       .base_mac = {0xa4, 0xcb, 0x8f, 0xcf, 0x2d, 0x68}, .eligible = true },
     { .id = 5, .name = "WS", .shortname = "WS", .hostname = "ws",
       .base_mac = {0xa4, 0xcb, 0x8f, 0xdf, 0x0a, 0x1c}, .eligible = true },
-    /* the pysar keeps the record on the small glass */
+    /* the vigía keeps the record on the small glass */
     { .id = 6, .name = "Display", .shortname = "Display", .hostname = "display",
-      .base_mac = {0x44, 0xb1, 0x76, 0xce, 0x29, 0xa0}, .eligible = false, .witness_role = "pysar" },
-    /* the kobzar sings the chronicle on the wide glass */
+      .base_mac = {0x44, 0xb1, 0x76, 0xce, 0x29, 0xa0}, .eligible = false, .witness_role = "vigía" },
+    /* the cabildo sings the chronicle on the wide glass */
     { .id = 7, .name = "Mission Control", .shortname = "Mission", .hostname = "mission",
-      .base_mac = {0xe8, 0xf6, 0x0a, 0x8e, 0x8c, 0x60}, .eligible = false, .witness_role = "kobzar" },
+      .base_mac = {0xe8, 0xf6, 0x0a, 0x8e, 0x8c, 0x60}, .eligible = false, .witness_role = "cabildo" },
 };
 #define FLEET_N (sizeof(FLEET) / sizeof(FLEET[0]))
 

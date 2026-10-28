@@ -1,4 +1,4 @@
-/* splice.c - the otaman's L4 splicer: relay the public port across the fleet.
+/* splice.c - the capitán's L4 splicer: relay the public port across the fleet.
  *
  * Backends are DISCOVERED from the roster at 1 Hz, never configured. The
  * listener is watched only when a relay slot AND backend capacity exist:
@@ -25,7 +25,7 @@
 #include "blackbox.h"
 #include "logic.h"
 #include "splice.h"
-#if CONFIG_BOHUN_SPLICE_TEST
+#if CONFIG_BIOHO_SPLICE_TEST
 #include "esp_heap_caps.h"
 #endif
 
@@ -34,7 +34,7 @@
  * cost is per-packet tcpip + SPI, not copies. Leave at 2 KB. */
 #define BUF_SZ        2048
 #define IDLE_KILL_MS  30000
-/* A client that has said nothing since accept is not a visitor (bohun_pair_silent):
+/* A client that has said nothing since accept is not a visitor (bioho_pair_silent):
  * scanners hoarding slots and PCBs for the full idle window were what filled
  * the pool under the leader and tripped its self-probe. */
 #define SILENT_KILL_MS 8000
@@ -50,7 +50,7 @@
  * connection costs a TCB; each relay costs two). Shallow + honest refusals. */
 #define LISTEN_BACKLOG 8
 
-static const char *TAG = "bohun_splice";
+static const char *TAG = "bioho_splice";
 
 typedef struct {
     char *buf;                        /* PSRAM - allocated once at start */
@@ -127,7 +127,7 @@ static uint32_t pctl_n(const uint16_t *ring, int pct, uint32_t count)
     for (uint32_t i = 0; i < n; i++) {
         w[i] = ring[i];
     }
-    return bohun_pctl(w, n, (uint32_t)pct);
+    return bioho_pctl(w, n, (uint32_t)pct);
 }
 static uint32_t pctl(const uint16_t *ring, int pct) { return pctl_n(ring, pct, s_ph_n); }
 static uint64_t s_bytes_in, s_bytes_out;
@@ -171,8 +171,8 @@ static void judge_backend(const pair_t *p, end_t why)
             /* Threshold and backoff are logic.h's bench laws: a repeat
              * offender re-benches on ONE failure, doubled each time; any
              * answer forgives instantly and completely. */
-            if (++s_fails[i] >= bohun_bench_threshold(s_bench_ms[i], FAIL_STREAK)) {
-                uint32_t b = bohun_bench_next_ms(s_bench_ms[i], SUSPECT_MS, SUSPECT_MAX_MS);
+            if (++s_fails[i] >= bioho_bench_threshold(s_bench_ms[i], FAIL_STREAK)) {
+                uint32_t b = bioho_bench_next_ms(s_bench_ms[i], SUSPECT_MS, SUSPECT_MAX_MS);
                 s_bench_ms[i] = b;
                 s_suspect_until[i] = now_ms() + b;
                 s_fails[i] = 0;
@@ -312,7 +312,7 @@ static int backend_connect_start(const backend_t *b)
     set_nonblock(fd);
     struct sockaddr_in a = {
         .sin_family = AF_INET,
-        .sin_port = htons(CONFIG_BOHUN_BACKEND_PORT),
+        .sin_port = htons(CONFIG_BIOHO_BACKEND_PORT),
         .sin_addr.s_addr = b->ip,
     };
     int r = connect(fd, (struct sockaddr *)&a, sizeof(a));
@@ -368,7 +368,7 @@ static void splice_task(void *arg)
         }
     }
 
-    /* BIND, AND KEEP TRYING. :443 is briefly busy exactly at mask handover
+    /* BIND, AND KEEP TRYING. :443 is briefly busy exactly at crown handover
      * (the old listener is still releasing it) - that is a reason to wait,
      * never to die. Note: a FreeRTOS task that returns aborts the node. */
     int lsock = -1;
@@ -380,7 +380,7 @@ static void splice_task(void *arg)
             set_nonblock(lsock);
             struct sockaddr_in me = {
                 .sin_family = AF_INET,
-                .sin_port = htons(CONFIG_BOHUN_SPLICE_PORT),
+                .sin_port = htons(CONFIG_BIOHO_SPLICE_PORT),
                 .sin_addr.s_addr = htonl(INADDR_ANY),
             };
             if (bind(lsock, (struct sockaddr *)&me, sizeof(me)) == 0 &&
@@ -392,20 +392,20 @@ static void splice_task(void *arg)
         }
         if (attempt == 1 || attempt % 30 == 0) {
             ESP_LOGW(TAG, "cannot own :%d yet (attempt %d) - retrying",
-                     CONFIG_BOHUN_SPLICE_PORT, attempt);
+                     CONFIG_BIOHO_SPLICE_PORT, attempt);
         }
         if (attempt == 1) {
-            blackbox_event(BBX_SPLICE, (uint16_t)CONFIG_BOHUN_SPLICE_PORT,
+            blackbox_event(BBX_SPLICE, (uint16_t)CONFIG_BIOHO_SPLICE_PORT,
                            "splice bind busy on :%d - retrying",
-                           CONFIG_BOHUN_SPLICE_PORT);
+                           CONFIG_BIOHO_SPLICE_PORT);
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
     s_active = true;
     ESP_LOGI(TAG, "splicing :%d -> :%d across the roster (every blade runs this; "
-                  "only the mask-wearer receives public traffic)",
-             CONFIG_BOHUN_SPLICE_PORT, CONFIG_BOHUN_BACKEND_PORT);
-    blackbox_event(BBX_SPLICE, 0, "splice up on :%d", CONFIG_BOHUN_SPLICE_PORT);
+                  "only the crown-wearer receives public traffic)",
+             CONFIG_BIOHO_SPLICE_PORT, CONFIG_BIOHO_BACKEND_PORT);
+    blackbox_event(BBX_SPLICE, 0, "splice up on :%d", CONFIG_BIOHO_SPLICE_PORT);
 
     int64_t last_stats = now_ms(), last_roster = 0;
     for (;;) {
@@ -560,7 +560,7 @@ static void splice_task(void *arg)
             if (!ok) {
                 pair_close(p, END_ERR);
             } else if (gone && flushed) {
-#if CONFIG_BOHUN_SPLICE_TEST
+#if CONFIG_BIOHO_SPLICE_TEST
                 ESP_LOGI(TAG, "done be=%u total=%ld ms",
                          p->backend_id, (long)(t - p->t_accept));
 #endif
@@ -576,7 +576,7 @@ static void splice_task(void *arg)
                 p->t_half = t;                /* still bytes to push - brief flush window */
             } else if (p->t_half && t - p->t_half > FLUSH_MS) {
                 pair_close(p, END_TIMEOUT);
-            } else if (bohun_pair_silent(p->c_spoke, p->t_accept, t, SILENT_KILL_MS)) {
+            } else if (bioho_pair_silent(p->c_spoke, p->t_accept, t, SILENT_KILL_MS)) {
                 pair_close(p, END_SILENT);
             } else if (t - p->last_io_ms > IDLE_KILL_MS) {
                 pair_close(p, END_TIMEOUT);
@@ -585,7 +585,7 @@ static void splice_task(void *arg)
 
         if (t - last_stats >= STATS_MS) {
             last_stats = t;
-#if CONFIG_BOHUN_SPLICE_TEST
+#if CONFIG_BIOHO_SPLICE_TEST
             /* Heap-corruption trap: validate INTERNAL heap every 5 s so an
              * lwIP scribble aborts near its cause with the block named.
              * INTERNAL only - sweeping poisoned PSRAM inside the heap

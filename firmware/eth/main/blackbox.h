@@ -19,8 +19,8 @@ enum {
     BBX_ERR5XX   = 2,   /* httpd emitted a 5xx - code + URI + heap truth at that instant */
     BBX_OOM      = 3,   /* one of our explicit malloc guards fired */
     BBX_HEAPLOW  = 4,   /* free heap crossed below the amber line (edge-triggered) */
-    BBX_MASK_ON  = 5,   /* this node claimed the mask */
-    BBX_MASK_OFF = 6,   /* this node lost/dropped the mask */
+    BBX_CROWN_ON  = 5,   /* this node claimed the crown */
+    BBX_CROWN_OFF = 6,   /* this node lost/dropped the crown */
     BBX_OTA_IN   = 7,   /* a release started landing on this node */
     BBX_OTA_OK   = 8,   /* release verified, about to reboot into it */
     BBX_CHRON    = 9,   /* mission only: a chronicle line, made persistent */

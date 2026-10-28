@@ -2,8 +2,8 @@
 #include "swarm.h"
 
 /* The SK6812 RGBW rail: six pixels chained off GPIO4 through the 74AHCT125
- * shifter. px0..px3 = N1..N4, px4 = the pysar's own pixel (deepest blue while
- * heartbeats arrive, red in silence), px5 = the kobzar. The colour law lives
+ * shifter. px0..px3 = N1..N4, px4 = the vigía's own pixel (deepest blue while
+ * heartbeats arrive, red in silence), px5 = the cabildo. The colour law lives
  * in led.c's header comment.
  *
  * The rail has six pixels for six members; a ledger id with no pixel (a shelf
@@ -20,5 +20,5 @@ typedef struct {
 void led_get_status(led_status_t *out);
 
 void led_blackout(void);     /* rail dark + held dark (maintenance) */
-void led_ota(bool active);   /* OTA window: whole rail slow-blinks amber */
+void led_ota(bool active);   /* OTA window: whole rail slow-blinks cyan */
 void led_wake(void);         /* resume normal rendering */

@@ -4,7 +4,7 @@
 #
 # The OTA key comes from the environment, never from this file - the script is
 # safe to publish. Get it from main/secrets.h:
-#   export BOHUN_OTA_KEY=$(grep BOHUN_OTA_KEY firmware/eth/main/secrets.h | cut -d'"' -f2)
+#   export BIOHO_OTA_KEY=$(grep BIOHO_OTA_KEY firmware/eth/main/secrets.h | cut -d'"' -f2)
 #
 # EVERY PUSH IS VERIFIED. A push loop that discards curl's result can silently
 # no-op the whole fleet while the firmware answers honestly (403 bad key,
@@ -12,7 +12,7 @@
 # read, and three gates must pass per node before the next node is touched:
 #   1. TRANSFER  - curl exits 0, HTTP 200, body starts "ok, rebooting"
 #   2. REBOOT    - uptime_s comes back LOWER than it was before the push
-#   3. NEW BUILD - X-Bohun-Build differs from what it served before
+#   3. NEW BUILD - X-Bioho-Build differs from what it served before
 # Any failure aborts. Leader-last ordering means an abort leaves the public face
 # still serving the last good image.
 #
@@ -23,11 +23,11 @@
 # `on_trial` on the admin roster; this polls for the real answer and only
 # calls it a release when every node has earned permanence.
 set -u
-: "${BOHUN_OTA_KEY:?set BOHUN_OTA_KEY first - see the comment above}"
+: "${BIOHO_OTA_KEY:?set BIOHO_OTA_KEY first - see the comment above}"
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"          # repo root, whatever the cwd
-BIN="${BIN:-$HERE/firmware/eth/build.lilygo/bohun_eth.bin}"
-SEED="${SEED:-$(grep BOHUN_MASK_IP "$HERE/firmware/eth/main/secrets.h" 2>/dev/null | cut -d'"' -f2)}"
+BIN="${BIN:-$HERE/firmware/eth/build.lilygo/bioho_eth.bin}"
+SEED="${SEED:-$(grep BIOHO_CROWN_IP "$HERE/firmware/eth/main/secrets.h" 2>/dev/null | cut -d'"' -f2)}"
 [ -f "$BIN" ] || { echo "no image at $BIN"; exit 1; }
 
 # WHAT IS BEING PUSHED, by identity rather than by "different from before".
@@ -84,13 +84,13 @@ try:
 except Exception:
     print('unknown')"
 }
-probe_build() {    # $1 = ip -> the X-Bohun-Build stamp THIS blade serves
+probe_build() {    # $1 = ip -> the X-Bioho-Build stamp THIS blade serves
   # Port 443 on a leader is the SPLICER: asking it for a build stamp returns
   # whichever backend it picked. The backend port is the blade's OWN server and
   # the only honest answer - deliberately NO fallback to 443, which would read
   # a neighbour's stamp during the reboot window.
   curl -k -s --max-time 8 -o /dev/null -D - "https://$1:8080/" 2>/dev/null |
-    tr -d '\r' | awk -F': ' 'tolower($1)=="x-bohun-build"{print $2}' 
+    tr -d '\r' | awk -F': ' 'tolower($1)=="x-bioho-build"{print $2}' 
 }
 
 pushed=0
@@ -123,7 +123,7 @@ for entry in "${NODES[@]}"; do
   # --- gate 1: the transfer itself -------------------------------------------
   body=$(mktemp)
   code=$(curl -k -s --max-time 90 -o "$body" -w '%{http_code}' \
-         -H "X-Bohun-Key: $BOHUN_OTA_KEY" \
+         -H "X-Bioho-Key: $BIOHO_OTA_KEY" \
          --data-binary @"$BIN" "https://$ip:8443/ota" 2>/dev/null) || code="000"
   if [ "$code" != "200" ] || ! grep -q '^ok, rebooting' "$body"; then
     echo "FAILED (http $code): $(head -c 120 "$body" | tr -d '\n')"

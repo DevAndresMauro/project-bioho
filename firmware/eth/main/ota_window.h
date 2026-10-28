@@ -6,10 +6,10 @@
  *
  * Steady state stays radio-pure. A deliberate touch gesture opens a window:
  * the device joins the flat's WiFi, starts an HTTPS admin server carrying the
- * same key-gated /ota door the blades run (plus /page on the kobzar for its
+ * same key-gated /ota door the blades run (plus /page on the cabildo for its
  * strip partition), shows its address and progress on its own glass, and
  * closes the window on success, cancel, or timeout - dropping WiFi and
- * re-pinning the swarm channel. Requires BOHUN_WIFI_SSID/_PASS in
+ * re-pinning the swarm channel. Requires BIOHO_WIFI_SSID/_PASS in
  * secrets.h; without them the window reports NOCREDS and refuses to open.
  *
  * Rollback: an OTA'd observer boots PENDING_VERIFY. ota_window_boot_trial()

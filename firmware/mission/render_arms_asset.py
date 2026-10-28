@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""render_arms_asset.py - bake the Cossack with musket for the kobzar's header.
+"""render_arms_asset.py - bake the palenque seal for the cabildo's header.
 
-Source: assets_src/herb_viyska_zaporozkoho.svg (Herb Viyska Zaporozkoho,
-Wikimedia Commons, public-domain heraldry; native 653x810 -> aspect 0.807).
-Renders at 2x on the UI background colour, box-downsamples for clean edges,
-emits main/arms_84x104.bin (little-endian RGB565) for EMBED_FILES.
+Source: assets_src/palenque_seal.svg (the Palenque coat of arms). Renders at 2x
+on the UI background colour, box-downsamples for
+clean edges, emits main/arms_84x104.bin (little-endian RGB565) for EMBED_FILES.
 """
 import struct
 import subprocess
@@ -12,10 +11,10 @@ import zlib
 from pathlib import Path
 
 HERE = Path(__file__).parent
-SVG = HERE / "assets_src" / "herb_viyska_zaporozkoho.svg"
+SVG = HERE / "assets_src" / "palenque_seal.svg"
 OUT = HERE / "main" / "arms_84x104.bin"
 W, H = 84, 104
-BG = "#0a0a0c"
+BG = "#070907"
 
 html = HERE / "_arms.html"
 html.write_text(

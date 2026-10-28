@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # fleet_check.sh - the security + health posture of the swarm, one glance.
 # Run from anywhere: tools/fleet_check.sh
-# Every line must read PASS before the router forwards anything to the mask.
+# Every line must read PASS before the router forwards anything to the crown.
 set -u
 # Addresses are DISCOVERED, never assumed: follower IPs are DHCP leases and
 # move, and a hardcoded list reports a healthy node as dead.
@@ -13,7 +13,7 @@ else
   # heartbeat, so any reachable blade can name all the others - the admin port
   # (8443, never forwarded) serves that view. Sweeping the subnet is the last
   # resort for when nothing answers at all.
-  SEED="${SEED:-$(grep BOHUN_MASK_IP "$(dirname "$0")/../firmware/eth/main/secrets.h" 2>/dev/null | cut -d'"' -f2)}"
+  SEED="${SEED:-$(grep BIOHO_CROWN_IP "$(dirname "$0")/../firmware/eth/main/secrets.h" 2>/dev/null | cut -d'"' -f2)}"
   mapfile -t NODES < <(
     curl -k -s --max-time 5 "https://$SEED:8443/roster" 2>/dev/null | python3 -c "
 import json,sys
@@ -55,9 +55,9 @@ for entry in "${NODES[@]}"; do
   set -- $entry; name=$1; ip=$2
   hdrs=$(own_page "$ip")
   page=$(echo "$hdrs" | head -1 | awk '{print $2}'); page=${page:---}
-  build=$(echo "$hdrs" | grep -i x-bohun-page | tr -d '\r' | awk '{print $2}'); build=${build:-?}
+  build=$(echo "$hdrs" | grep -i x-bioho-page | tr -d '\r' | awk '{print $2}'); build=${build:-?}
   ota443=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 6 -X POST \
-           -H "X-Bohun-Key: $KEY" --data "x" "https://$ip/ota" || echo "---")
+           -H "X-Bioho-Key: $KEY" --data "x" "https://$ip/ota" || echo "---")
   # the public path itself: 443 must answer 200 whether it is a splicer or a
   # direct server. This is the check a visitor's browser performs.
   pub=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "https://$ip/" || echo "---")
@@ -77,7 +77,7 @@ n_builds=$(echo "$builds" | tr '|' '\n' | grep -v '^$' | sort -u | wc -l | tr -d
 [ "$n_builds" -le 1 ] || { echo "WARN: nodes serve $n_builds different page versions - a deploy was missed"; fail=1; }
 
 echo
-echo "roster from the mask holder:"
+echo "roster from the crown holder:"
 curl -sk --max-time 5 "https://$SEED:8443/roster" | python3 -c "
 import json,sys
 try:
@@ -96,7 +96,7 @@ except Exception as e:
 # Two ways the page silently goes stale:
 #   1. assets/personal.html edited but the gz/br blobs never regenerated
 #   2. blobs regenerated but the firmware never rebuilt/deployed
-# Both are caught by CONTENT, never mtime. The served X-Bohun-Page tag is
+# Both are caught by CONTENT, never mtime. The served X-Bioho-Page tag is
 # size-crc32 of the embedded blobs, so the stored blobs' tag answers 2.
 HERE="$(dirname "$0")"
 SRC="$HERE/../assets/personal.html"
@@ -114,7 +114,7 @@ stored_br = open(br, 'rb').read()
 # when the payload is identical. What we actually care about is the payload.
 same = gzip.decompress(stored) == open(src, 'rb').read()
 print(f"BLOB_CURRENT={'yes' if same else 'no'}")
-# X-Bohun-Page covers BOTH encodings - a gz-only refresh must not read as
+# X-Bioho-Page covers BOTH encodings - a gz-only refresh must not read as
 # consistent while brotli clients get stale bytes:
 # gzlen-gzcrc32-brlen-brcrc32, matching page_tag() in serve.c.
 print(f"STORED_TAG={len(stored)}-{zlib.crc32(stored) & 0xffffffff:08x}-"

@@ -18,7 +18,7 @@
 /* Liveness from 32-bit millisecond stamps. Unsigned subtraction survives the
  * 49-day wrap; last_seen == 0 means "never heard at all", not "heard at t=0"
  * (the first heartbeat always lands at now > 0). */
-static inline bool bohun_peer_alive_ms(uint32_t last_seen_ms, uint32_t now_ms,
+static inline bool bioho_peer_alive_ms(uint32_t last_seen_ms, uint32_t now_ms,
                                        uint32_t lost_after_ms)
 {
     return last_seen_ms != 0 && (uint32_t)(now_ms - last_seen_ms) < lost_after_ms;
@@ -30,7 +30,7 @@ static inline bool bohun_peer_alive_ms(uint32_t last_seen_ms, uint32_t now_ms,
  * and counting the internet's background noise as downtime makes a healthy
  * fleet read as broken. No traffic at all is 100%, not 0. The clamp covers
  * peers whose counters were gossiped in separate frames and can skew. */
-static inline uint16_t bohun_avail_x10(uint32_t served, uint32_t refused,
+static inline uint16_t bioho_avail_x10(uint32_t served, uint32_t refused,
                                        uint32_t refused_srv)
 {
     uint32_t total = served + refused;
@@ -47,7 +47,7 @@ static inline uint16_t bohun_avail_x10(uint32_t served, uint32_t refused,
  * (first_seq), so it is not skewed by the observer having booted later than
  * the sender. A reboot resets the window (last < first): call it 100 until
  * the new window has data. */
-static inline uint32_t bohun_delivery_pct(uint32_t first_seq, uint32_t last_seq,
+static inline uint32_t bioho_delivery_pct(uint32_t first_seq, uint32_t last_seq,
                                           uint32_t rx_win)
 {
     uint32_t span = (last_seq >= first_seq) ? (last_seq - first_seq + 1) : 1;
@@ -58,7 +58,7 @@ static inline uint32_t bohun_delivery_pct(uint32_t first_seq, uint32_t last_seq,
  * prev_seq == 0 means "first frame ever heard" - no gap to report. A seq
  * that went BACKWARDS is a reboot, also not a gap. Capped at 99: the
  * consumer prints two digits and a bigger number carries no more meaning. */
-static inline uint8_t bohun_seq_gap(uint32_t prev_seq, uint32_t seq)
+static inline uint8_t bioho_seq_gap(uint32_t prev_seq, uint32_t seq)
 {
     if (prev_seq == 0 || seq <= prev_seq + 1) {
         return 0;
@@ -70,7 +70,7 @@ static inline uint8_t bohun_seq_gap(uint32_t prev_seq, uint32_t seq)
 /* Nearest-rank percentile over w[0..cnt), sorting w in place (insertion sort -
  * every caller's ring is <= 128 wide). The caller passes a scratch copy; the
  * live ring is never reordered. */
-static inline uint32_t bohun_pctl(uint32_t *w, uint32_t cnt, uint32_t pct)
+static inline uint32_t bioho_pctl(uint32_t *w, uint32_t cnt, uint32_t pct)
 {
     if (cnt == 0) {
         return 0;
@@ -97,10 +97,10 @@ typedef struct {
     bool eligible;
     bool alive;      /* heard on the radio inside the lost window */
     bool able;       /* link up AND its TLS server is listening */
-} bohun_cand_t;
+} bioho_cand_t;
 
-static inline uint8_t bohun_elect(uint8_t self_id, bool self_ok,
-                                  const bohun_cand_t *peers, size_t n)
+static inline uint8_t bioho_elect(uint8_t self_id, bool self_ok,
+                                  const bioho_cand_t *peers, size_t n)
 {
     uint8_t best = 0xff;
     if (self_ok) {
@@ -121,12 +121,12 @@ static inline uint8_t bohun_elect(uint8_t self_id, bool self_ok,
  * bad blade from scratch costs three visitors per cycle.
  * Backoff: each re-bench doubles the sit-out, capped so a dead blade is still
  * re-checked. Any successful answer forgives instantly and completely. */
-static inline uint8_t bohun_bench_threshold(uint32_t prev_bench_ms, uint8_t streak)
+static inline uint8_t bioho_bench_threshold(uint32_t prev_bench_ms, uint8_t streak)
 {
     return prev_bench_ms ? 1 : streak;
 }
 
-static inline uint32_t bohun_bench_next_ms(uint32_t prev_bench_ms,
+static inline uint32_t bioho_bench_next_ms(uint32_t prev_bench_ms,
                                            uint32_t first_ms, uint32_t max_ms)
 {
     uint32_t b = prev_bench_ms ? prev_bench_ms * 2 : first_ms;
@@ -136,7 +136,7 @@ static inline uint32_t bohun_bench_next_ms(uint32_t prev_bench_ms,
 /* Does Accept-Encoding contain a "br" token? Token-boundary check so
  * "abrupt" or "sbr" never false-match; q-values ignored - no real client
  * advertises brotli only to refuse it. */
-static inline bool bohun_accepts_br(const char *ae)
+static inline bool bioho_accepts_br(const char *ae)
 {
     for (const char *p = ae; (p = strstr(p, "br")) != NULL; p += 2) {
         bool head = (p == ae) || p[-1] == ',' || p[-1] == ' ' || p[-1] == '\t';
@@ -151,7 +151,7 @@ static inline bool bohun_accepts_br(const char *ae)
 /* 10/8, 172.16/12, 192.168/16 - dotted-quad only, no names. Used by the port-80
  * redirect: echoing back a private literal the client itself typed discloses
  * nothing, where any hardcoded fallback would. */
-static inline bool bohun_is_private_literal(const char *h)
+static inline bool bioho_is_private_literal(const char *h)
 {
     unsigned a, b, c, d;
     char tail;
@@ -170,7 +170,7 @@ static inline bool bohun_is_private_literal(const char *h)
 /* Does an Origin header name OUR host? Full-label match past the scheme, so
  * "https://host.evil.com" never passes as "host". host must arrive with any
  * :port already stripped. */
-static inline bool bohun_origin_host_ok(const char *origin, const char *host)
+static inline bool bioho_origin_host_ok(const char *origin, const char *host)
 {
     const char *oh = strstr(origin, "://");
     oh = oh ? oh + 3 : origin;
@@ -185,7 +185,7 @@ static inline bool bohun_origin_host_ok(const char *origin, const char *host)
  * document by hand: a SHORT roster is honest, an unparseable one is not.
  * Writes "]}\n" plus the NUL after the last '}', which needs cut+5 <= len;
  * returns the repaired length, or 0 when no repair fits the buffer. */
-static inline size_t bohun_json_close_clamped(char *buf, size_t len)
+static inline size_t bioho_json_close_clamped(char *buf, size_t len)
 {
     size_t cut = len - 1;
     while (cut > 0 && buf[cut] != '}') {
@@ -206,12 +206,12 @@ static inline size_t bohun_json_close_clamped(char *buf, size_t len)
  * that is "busy", not "dead", and reading it as dead made a fully loaded
  * leader stand itself down 21 times in 16 days. Only a refusal or a timeout
  * is evidence that the listener is gone. */
-typedef enum { BOHUN_PROBE_OK, BOHUN_PROBE_BUSY, BOHUN_PROBE_DEAD } bohun_probe_t;
+typedef enum { BIOHO_PROBE_OK, BIOHO_PROBE_BUSY, BIOHO_PROBE_DEAD } bioho_probe_t;
 
-static inline bohun_probe_t bohun_probe_verdict(bool connected, int err)
+static inline bioho_probe_t bioho_probe_verdict(bool connected, int err)
 {
     if (connected) {
-        return BOHUN_PROBE_OK;
+        return BIOHO_PROBE_OK;
     }
     switch (err) {
     case ENOBUFS:
@@ -219,21 +219,21 @@ static inline bohun_probe_t bohun_probe_verdict(bool connected, int err)
     case ENFILE:
     case EMFILE:
     case EAGAIN:
-        return BOHUN_PROBE_BUSY;
+        return BIOHO_PROBE_BUSY;
     default:
-        return BOHUN_PROBE_DEAD;
+        return BIOHO_PROBE_DEAD;
     }
 }
 
 /* One verdict folded into the failure streak: OK clears it, DEAD grows it,
  * BUSY leaves it exactly where it was - a probe that could not run neither
  * confirms nor forgives. Saturates rather than wrapping back to healthy. */
-static inline uint8_t bohun_probe_streak(uint8_t fails, bohun_probe_t v)
+static inline uint8_t bioho_probe_streak(uint8_t fails, bioho_probe_t v)
 {
-    if (v == BOHUN_PROBE_OK) {
+    if (v == BIOHO_PROBE_OK) {
         return 0;
     }
-    if (v == BOHUN_PROBE_DEAD) {
+    if (v == BIOHO_PROBE_DEAD) {
         return fails < 255 ? (uint8_t)(fails + 1) : 255;
     }
     return fails;
@@ -242,10 +242,10 @@ static inline uint8_t bohun_probe_streak(uint8_t fails, bohun_probe_t v)
 /* Fit to be elected and handed traffic? Not while the streak is at the sick
  * threshold, and not for hold_ms after the LAST sick-level failure even once
  * probes pass again. The election is lowest-id-wins with no stickiness, so
- * without the hold a recovered leader takes the mask straight back the moment
+ * without the hold a recovered leader takes the crown straight back the moment
  * its pool drains: two handovers, seven seconds apart, for one hiccup.
  * stood_down_ms == 0 means never stood down; unsigned math survives the wrap. */
-static inline bool bohun_probe_fit(uint8_t fails, uint8_t sick_at,
+static inline bool bioho_probe_fit(uint8_t fails, uint8_t sick_at,
                                    uint32_t stood_down_ms, uint32_t now_ms,
                                    uint32_t hold_ms)
 {
@@ -264,7 +264,7 @@ static inline bool bohun_probe_fit(uint8_t fails, uint8_t sick_at,
  * fails at socket() or takes the last block so the listener cannot accept -
  * a silent SYN drop that reads as a timeout, i.e. as death. Do not probe at
  * all then: the pool is full, and full is load. */
-static inline bool bohun_probe_room(uint8_t pairs, uint16_t pool)
+static inline bool bioho_probe_room(uint8_t pairs, uint16_t pool)
 {
     return (uint16_t)(2u * pairs + 4u) <= pool;
 }
@@ -275,7 +275,7 @@ static inline bool bohun_probe_room(uint8_t pairs, uint16_t pool)
  * and two control blocks out of the admission-control pool. It is killed,
  * and the backend is NOT judged for it - it was never asked anything, so
  * its silence is not evidence. Signed ms stamps, as the splicer keeps them. */
-static inline bool bohun_pair_silent(bool client_spoke, int64_t accept_ms,
+static inline bool bioho_pair_silent(bool client_spoke, int64_t accept_ms,
                                      int64_t now_ms, int64_t silent_ms)
 {
     return !client_spoke && now_ms - accept_ms > silent_ms;

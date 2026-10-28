@@ -1,4 +1,4 @@
-# display (pysar): dual OTA slots since the OTA-window era (doc 38) - the
+# display (vigía): dual OTA slots since the OTA-window era (doc 38) - the
 # window joins WiFi on demand and takes images on the blades' own /ota door.
 # Table change = one USB flash; after that, releases travel by air.
 nvs,      data, nvs,      0x9000,   0x6000

@@ -9,7 +9,7 @@
 #include "blackbox.h"
 #include "vitals.h"
 
-static const char *TAG = "bohun_vitals";
+static const char *TAG = "bioho_vitals";
 
 static temperature_sensor_handle_t s_tsens;
 static volatile int16_t s_temp_c10 = VITALS_TEMP_NONE;

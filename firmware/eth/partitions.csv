@@ -1,4 +1,4 @@
-# bohun 16 MB layout: dual OTA slots so firmware travels over the network.
+# bioho 16 MB layout: dual OTA slots so firmware travels over the network.
 # 2026-08-02: the never-mounted 3.9 MB assets region donates 320 KB to memory -
 #   coredump (64 KB)  = full panic post-mortems (espcoredump.py reads them via
 #                       GET :8443/coredump), and

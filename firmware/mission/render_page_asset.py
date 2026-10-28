@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""render_page_asset.py - bake "what the world sees" for the kobzar's second tile.
+"""render_page_asset.py - bake "what the world sees" for the cabildo's second tile.
 
 Renders assets/personal.html FULL-PAGE with headless Chrome at a 1000-px desktop
 viewport scaled by 0.8 (so the output is still exactly 800 wide - the desktop

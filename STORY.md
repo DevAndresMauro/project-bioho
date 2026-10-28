@@ -1,25 +1,18 @@
- I serve my website from six ESP32 microcontrollers on a shelf
----
+## serving a website from six ESP32 microcontrollers on a shelf
 
-I've loved microcontrollers since uni.
-For me, studying ASM clicked the physics and maths fundamentals together: 
-1. Electrical circuits → transistors → logic gates → ICs → SoCs on one end
-2. Boolean logic → min canonical forms → Zhegalkin algebra → combinational circuits → computer arithmetic → finite state machines → Markov chains on the other.    
+I grew up curious about how things worked and started disecting systems and technology at a young age, and i am fortunate enough that my parents were supportive (as long as i didnt break anything, but i had some "casualties"). and my father always tried to find ways to feed my curiosity. Thats how i ended up doing my highschool at the ITIDA, which is a public school in Soledad, Atlántico, Colombia. that focused in specialized technical industrial education. which exposed me to a variety of areas, electronics won my heart then. 
 
-There is beauty in it, and the feeling that my field of study starts making sense is priceless.
+I am an electronics and systems engineer by training. however, life took me to a different professional path, so electronics/programming and software stayed as a fun hobby. Whenever i found something interesting i would just try to go for it, from FPV drones to a cloud lab, any project built was a challenge, an activity that taught me something new while helping me keep my skills in electronics, programming, etc. and finding a project that helps me tap into those areas is amazing.
 
-Decades later, my career has firmly gone into distributed systems. 
-I've had the chance to witness the emergence of CUDA, as well as the rise of Cloud Computing: from virtualization, to containerization, to "serverless" at scale. 
+This swarm is one of those builds.
 
-Nowadays, hosting your own website on hardware that you own and manage seems almost laughable.
-Having some time on my hands this summer, I have embarked on a journey to disprove such a ridiculous notion!
-
-First, I wanted to host _a website_ from my own closet, to make a point (mainly to myself), and going with a Raspberry Pi would have probably been the prudent way of doing it.
+I never actually had a portfolio website, a blog, or anything of that sort, but if i tried it, i knew i would try to go for something different, i could have done something simple, just _a website_ from any of the VMs i had set up in the past, or a Raspberry Pi, even a free tier on a cloud provider would have probably been a quick and prudent way of doing it...
 
 But what's the fun in that?
 
-The project below is the result of figuring out the fun:
-1. What if... the website is hosted on a 5x3cm microcontroller board weighing under 20 grams? 
+Thats what made this project stand out to me:
+
+1. What if... the website is hosted on a 5x3cm microcontroller board weighing under 20 grams?
 2. It wouldn't scale, though? Now we're talking, let's make it four microcontrollers then!
 3. How do we distribute the work then? Let's make one of them tell the others what to do!
 4. And how would I know what's going on in my own system? Let's get a display and render things on it!
@@ -27,18 +20,16 @@ The project below is the result of figuring out the fun:
 6. Tiny screen is a tiny window for a lot of data, though? Right, let's buy a Bigger Screen and show All The Data there!
 7. But the screens don't have Ethernet! How would they even learn about anything in the fleet? Indeed, so we'll make the fleet talk to each other over radio instead!
 8. How would I deploy any changes for this system? Let's do it over the air and make it safe, too!
-9. Where would all this hardware reside? On a shelf, of course, in tiny plastic cases!
-10. The screens are useless in a closet though. Also, what about the power supply, and networking, in this heat? Fine, let's build a rack for it all!
+9. Where would the four cimarrones reside? On one printed plate, the bohío.
+10. The screens are useless in a closet though. Also, what about the power supply, and networking, in this heat? One printed shell holds the whole machine. That shell is the rack. Two 50 mm fans will sit on the lid and blow out. There is no intake fan.
 
-As a result, https://kyrylonovotarskyi.com is served from six ESP32-S3 microcontrollers on a shelf
-in a London flat.
+As a result, https://projectbioho.com is served from six ESP32-S3 microcontrollers on a shelf
+in a flat, somewhere in Berlin.
 
 No CDN in front, no Cloud behind, no hosting provider, no Raspberry Pis, and most definitely no hardware load balancers anywhere in the building. 
-The whole rack, screens and fans included, draws about 22 watts.
+The whole machine, screens and fans included, draws about 22 watts.
 The primary fleet serves the website and terminates TLS on 240 MHz chips, load-balances across itself with a bespoke L4 TCP splicer, monitors itself, and heals itself.
 It survives pulling any plug in it, including the leader's, recovering in under four seconds.
-
-<img src="docs/media/photos/rack-hero.jpg" width="520" alt="The rack: four blades behind smoked acrylic, both screens lit, the trident glowing">
 
 Whether the fleet will be able to survive visitors this thread - only time will tell. 
 I must ask the readers to be forgiving and gentle with it - there is a very real ceiling on how much TLS termination an ESP32 is able to physically do.
@@ -52,13 +43,20 @@ If the site is slow when you try it, chances are it's not because the machines a
 
 Here is what it took to get there.
 
-## Origin Lore
-A good story must have its own lore!
-Since I'm Ukrainian, the fleet is named after Ivan Bohun, a renowned Cossack colonel, but also a folklore hero. 
-As the story goes, he broke his sabre rather than swear the oath of allegiance to the Russian monarch at Pereiaslav. 
-He's also a Kharakternyk (__Ukrainian: Характерник__) - a shamanistic warrior mage, a shapeshifter with superhuman abilities, a brilliant tactician, and an avid warfare intelligence practitioner. 
-In other words, the right patron for a website where the entire design is a refusal to be hosted. 
-The leader of the fleet is the Otaman and the mask is the office he holds.
+## Original Project
+
+I have to give credit to Kyrylo Novotarskyi, as his original project [ivan-bohun](https://github.com/Novotarskyi/ivan-bohun) was practically a blueprint for what i ended up building
+You can read the original projects story, and support his cause by going to his ESP32 Hosted webiste https://kyrylonovotarskyi.com/
+
+Inspired by his story, i set out to build a version of the project with my spin on it.
+
+## Project Biohó
+
+A good story must have its own lore.
+The fleet is **Project Biohó**, named for Benkos Biohó, who broke his chains and built Palenque, a free town the empire could not take.  
+The whole design is that same refusal: no landlord, no cloud, one identity the machines pass between themselves.  
+The elected leader is the **capitán** and wears the **crown**. The blades that answer are **cimarrones**. The small screen is the **vigía**, the wide screen is the **cabildo**. The plate the four cimarrones share is a **bohío**, and the shell around the whole machine is the rack, the fortress, if you will.
+
 
 ## Key rule of thumb
 
@@ -74,7 +72,7 @@ And we'll most definitely do it, because we can and for the sake of it!
 
 The serving blades ended up being, rather accidentally, four LILYGO T-ETH-Lite boards, costing about £12 (~$16) each: an ESP32-S3 with a
 W5500 wired-Ethernet chip.
-Everything else in the rack exists to power them, connect them, or tell me the truth about them.
+Everything else in the shell exists to power them, connect them, or tell me the truth about them.
 
 ## Shapeshifting Problem 
 
@@ -111,12 +109,13 @@ The balancer is an elected role that moves between blades. Every blade
 carries both programs, and which one it runs is decided by the election.
 The splicer rebuilds its set every
 second from the radio gossip, taking whoever is alive, serving, and holding
-an address. Kill the leader, and the next blade takes the mask and balances to
+an address. Kill the leader, and the next blade takes the crown and balances to
 what remains. Kill all but one and the survivor splices to its own server
 over loopback: the ladder ends at the original single-blade site.
 
 Misbehaving backends go on a bench: accept a connection and return nothing
-three times, and you sit out 15s, doubling up to 240s. The blade is
+three times, and you sit out 15s, doubling up to 240s. Once a blade has been
+benched, one more silent accept is enough to put it back. The blade is
 forgiven completely if a single byte is returned. 
 Hard lesson learned while implementing: the bench should **only** decide who gets the next visitor, never **whether** there is
 one to receive, otherwise a fully benched fleet will turn visitors away forever. 
@@ -143,72 +142,60 @@ I have subsequently also learned that FreeRTOS treats a relay task returning as 
 ## The Metal
 
 The whole project is best described as one massive cascade of failures.
-I never soldered anything in my entire life and didn't intend to learn.
-However, when the LILYGO blades arrived, I was eventually confronted with reality: how are we going to power this thing?
+When the LILYGO blades arrived, the question was how to power them.
 
 A LILYGO T-ETH-Lite board does have an Ethernet port. And I have assumed that, technically, Ethernet should be able to draw some current to power the tiny thing, right?
 Well, yes, in theory, but no - not this port and not on this board it can't! 
-Throwing away six perfectly good microcontrollers felt like a waste, so let's order a pack of USB-C breakout ports!
-So how do we connect the two? With some wires, right? Absolutely! 
-But wait, where are the board pins? Ah, a separate plastic bag...well, at least they're there!
+Throwing away four perfectly good microcontrollers felt like a waste, so let's order a pack of USB-C breakout ports!
+So how do we connect the two? With some wires, right? Absolutely!
 
-The sunk cost was high, so I figured that it's about time to learn how to solder things!
-
-In the end, almost everything got soldered by hand, 292 total joints across the fleet. 
+The blades are wired with four soldered tails each, by an electronics technician, and the unused pins are left bare.
 The soldering and the wiring quickly turned my work desk into a wired mess.
-To compress space, each blade now lives in a Kurin (__Ukrainian: Курінь__), a 3D-printed ventilated barracks it slides into like a drawer, RJ45 nose out.
+To compress space, the four cimarrones share one bohío: a printed plate on the switch, RJ45 noses toward the rear. The shell around that stack is the rack. It holds the switch, the power brick, the fuse board, the bohío, and both screens. Two 50 mm exhaust fans will sit on the lid. There is no intake fan.
 
-To reduce entropy further, the four Kurins rack into a 10-inch, 8U desktop cabinet behind a laser-cut
-smoked-acrylic face: both screens glow through the smoke, six status pixels
-glow beneath them.
+Networking is an eight-port HPE OfficeConnect 1420 that uplinks to the home router, which forwards exactly two ports to the
+crown's address and nothing to anything else. The admin plane, the OTA door, and the backend port exist only on the LAN.
 
-Finally, since summer in London is extra hot this year, three fans got plugged in to pull one vertical draw of air through the
-whole thing: intake low, exhaust high.
+Power is a Mean Well GST60A05-P1J, 5 V at 6 A, into a stripboard. Eight fused
+branches leave it: six USB-C sockets, four for the blades and two for the screens, and two 2-pin screw terminals for the lid fans. The fans
+are not fitted. With them on, the machine draws about 22 W of the brick's 30 W. Without them it sits a couple of watts under that, on two wall plugs: one for the brick, the
+other for the switch.
 
-<img src="docs/media/photos/open-rear.jpg" width="520" alt="The open rear: kurins, cat6 drops, and the honest wire shelf">
+## The witnesses
 
-Networking is an eight-port switch that uplinks to the home router, which forwards exactly two ports to the
-mask's address and nothing to anything else. The admin plane, the OTA door, and the backend port exist only on the LAN.
+The machine is very much physical, so the observability stack is too.
 
-Power supply comes from a single 200W GaN charger feeding six USB-C leads up an internal
-spine. The rack itself draws a ~1/10th of what's available, taking up two wall
-plugs: one for the charger, the other for the switch.
-
-## Glass Menagerie
-
-The rack is very much physical, so the observability stack is too.
-
-A six-pixel LED rail glows through the face's lower band, one pixel per
+A six-pixel LED rail sits in a slot on the shell's front wall, one pixel per
 member, driven through a separately built level shifter circuit.
-The reason I needed one is that ESP32's 3.3V data line is
-out of spec for LED strip expecting 5V. 
-The color-coding of the LED rail is status-based: lime-green for fleet leader, white for blades serving, amber solid for a benched blade, blinking amber for blades booting or taking a release, red for lost. 
-The scribe screen's pixel burns deepest blue and the bard's deepest purple.
+The reason I needed one is that the ESP32's 3.3V data line is
+out of spec for an LED strip expecting 5V.
+Lost is red, and red wins every argument.
+A blade that is booting blinks white, fast. A release blinks white, slow.
+After that, the steady colours: the capitán gold (`#e6c229`), a serving cimarrón faint green, a benched blade solid white, the vigía deepest blue, the cabildo deepest purple.
+Open an OTA window and the whole rail blinks cyan, slowly.
+The vigía's own pixel does not blink. Blue while any heartbeat is heard, red when the radio goes silent.
 
-<img src="docs/media/photos/glass-and-rail.jpg" width="520" alt="Both screens and the six-pixel rail, fleet healthy">
+The 2.8" screen is the **vigía**: the crown's address and vMAC, then the live roster, role, signal bars, served counts, uptime, radio-loss, fleet availability, and which image is running on the glass.
+A small copy of the six pixels sits on the screen too, so the rail can be read from the side the LEDs do not face.
+The vigía drives the rail.
 
-The 2.8" screen is the **pysar**, the scribe: the live roster, per-blade
-served counts, signal bars, fleet availability. The 4.3" touch panel is the
-**kobzar**, the bard: a mission control blade with a
-chronicle that explains every reboot by cause (the chip latches why it died
-in a register that survives reset), a
-ledger page counting every HTTP 200 and every refusal per blade, a radio page
-showing the last 45 seconds of gossip with missed-heartbeat markers, and a
-fourth page holding the website itself, baked to RGB565 into a 12 MB flash
-partition, scrollable under a finger. 
-The website rendering page serves no particular purpose, built to learn a bit about LVGL.
+The 4.3" touch panel is the **cabildo**, a witness, not a blade. Four tiles.
+The first is mission control: the node cards, a fleet chart, the chronicle (the chip latches why it died in a register that survives reset, and the line names that cause and how long the member had lived), and the reign records.
+Then the ledger: every HTTP 200 above the refusals, per code, per blade.
+Then the radio: the last 45 seconds of gossip, with a marker where a heartbeat was missed.
+The fourth tile is the website itself, baked to RGB565 into its own flash partition (12.19 MB in the table), scrollable under a finger.
+I built that page to learn a bit about LVGL. It stayed, because the glass should be able to hold the page the fleet serves.
 
-None of the observer blades poll the fleet. The screens only witness via listening to the same encrypted
+None of the witnesses poll the fleet. The screens only listen, on the same encrypted
 radio, hearing the same 1 Hz heartbeats as everyone else.
 
 ## Updates that cannot brick the fleet
 
 Early on, bad config updates bricked the fleet's update path itself on multiple occasions, making the nodes recoverable only by hand via USB-C.
 
-To make updates less risky, deployments now run on followers first, leader last, and every node holds a new image
+To make updates less risky, deployments now run on followers first, leader last, and every blade holds a new image
 **on trial**: it must survive 90 seconds of continuous serving within a 5min deadline, otherwise the bootloader rolls back to the previous slot.
-
-<img src="docs/media/photos/ota-window.jpg" width="520" alt="The kobzar's touch-opened OTA window, release in flight">
+The screens have no Ethernet. A four-second touch joins the flat's WiFi and opens the same door, and a new image on a screen has to stay up and hear a peer for 60 seconds inside that same 5min, or the bootloader rolls it back.
 
 Hard lesson re-learned: a release must never brick its own delivery path.
 
@@ -220,26 +207,8 @@ To my surprise, it proved much less capable at this kind of software than I expe
 
 Still, it types much faster than I do, so we made it work. The division of labour we've settled on: I decide what is true and what ships. Every measurement came off my bench, every disaster above happened to my actual hardware, and the solder burns are mine.
 
-The whole build is open source and is available in a Github repo here - https://github.com/Novotarskyi/ivan-bohun. It contains the firmware for all three images, the OpenSCADs, various tooling, and a comprehensive build guide that starts at the first solder joint and ends with a fleet holding an election.
+The whole build is open source in this repository. It contains the firmware for all three images, the OpenSCADs, various tooling, and a comprehensive build guide that starts at the first solder joint and ends with a fleet holding an election.
 
-The living proof is the website itself: https://kyrylonovotarskyi.com
+The living proof is the website itself: https://yourwebsite.com
 
 The roster at the top of the page is an actual live status of the setup sitting on my desk.
-
----
-
-## Donate to Ukraine's defenders
-
-Everything above is, in the end, a plug for this section.
-
-- [Come Back Alive Foundation](https://savelife.in.ua/en/donate-en/)
-- [Serhiy Prytula Charity Foundation](https://prytulafoundation.org/en/donation)
-- [The Hospitallers Battalion](https://www.hospitallers.life/needs-hospitallers)
-- [UNITED 24](https://u24.gov.ua/)
-
-Or [place your trust in me directly](https://monzo.me/Novotarskyi): donations
-buy best-in-class hemostatic agents for the Ukrainian Medical Corps, shipped
-straight to the front-line hotspots where the need is most critical.
-**$50 saves a life - literally.** $150,000+ deployed, 2250+ Celox
-Haemostatics delivered so far, with the
-[full nomenclature always public](https://docs.google.com/spreadsheets/d/11mWVBJDrpQaJfEoERbiEmESVg5paxcoPQ7fkLouUGLo/edit?gid=0#gid=0).

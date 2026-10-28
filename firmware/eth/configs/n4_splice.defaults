@@ -7,6 +7,6 @@
 # overlay only adds the bench instrumentation: per-connection receipts and the
 # heap trap that caught the write-after-free. Keep N4 on this build so any
 # recurrence is caught here rather than in the fleet.
-CONFIG_BOHUN_SPLICE_TEST=y
-CONFIG_BOHUN_HOSTNAME="bohun-n4test"
+CONFIG_BIOHO_SPLICE_TEST=y
+CONFIG_BIOHO_HOSTNAME="bioho-n4test"
 CONFIG_HEAP_POISONING_COMPREHENSIVE=y

@@ -1,5 +1,5 @@
 CONFIG_IDF_TARGET="esp32s3"
-# bohun node firmware - COMMON defaults; pair with exactly one boards/<board>.defaults
+# bioho node firmware - COMMON defaults; pair with exactly one boards/<board>.defaults
 CONFIG_ETHERNET_INTERNAL_SUPPORT=n
 CONFIG_ETHERNET_SPI_SUPPORT=y
 CONFIG_ETHERNET_SPI_DEV0_W5500=y

@@ -1,8 +1,8 @@
-/* bohun mission: the 4.3" kobzar (Waveshare ESP32-S3-Touch-LCD-4.3B).
+/* bioho mission: the 4.3" cabildo (Waveshare ESP32-S3-Touch-LCD-4.3B).
  * Second witness on the ESP-NOW control plane (fleet id 7, eligible=false) -
  * exactly the display node's role, with a mission-control UI and touch.
- * Reuses swarm.c/swarm_identity.c/mask.c from the node firmware unchanged;
- * ineligible means the mask code is never exercised here.
+ * Reuses swarm.c/swarm_identity.c/crown.c from the node firmware unchanged;
+ * ineligible means the crown code is never exercised here.
  */
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -18,7 +18,7 @@
 #include "panel.h"
 #include "ui.h"
 
-static const char *TAG = "bohun_mission";
+static const char *TAG = "bioho_mission";
 
 static void render_task(void *arg)
 {
@@ -36,7 +36,7 @@ static void render_task(void *arg)
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "bohun mission: 4.3in kobzar (ESP-NOW witness + touch dashboard)");
+    ESP_LOGI(TAG, "bioho mission: 4.3in cabildo (ESP-NOW witness + touch dashboard)");
 
     esp_err_t nvs = nvs_flash_init();
     if (nvs == ESP_ERR_NVS_NO_FREE_PAGES || nvs == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -46,7 +46,7 @@ void app_main(void)
     ESP_ERROR_CHECK(nvs);
 
     blackbox_init();   /* reboots get names here too */
-    vitals_start();    /* same on-die sensor as the blades - the kobzar runs warm */
+    vitals_start();    /* same on-die sensor as the blades - the cabildo runs warm */
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 

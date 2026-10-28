@@ -30,7 +30,7 @@
 #define SECTOR      4096
 #define RECS_PER_SECTOR (SECTOR / REC_SZ)
 
-/* the amber line, same value the kobzar watches remotely; edge-triggered with
+/* the amber line, same value the cabildo watches remotely; edge-triggered with
  * hysteresis so one hovering value cannot spam the ring */
 #define HEAP_AMBER      (64 * 1024)
 #define HEAP_REARM      (72 * 1024)
@@ -49,7 +49,7 @@ typedef struct __attribute__((packed)) {
 } bbx_rec_t;
 _Static_assert(sizeof(bbx_rec_t) == REC_SZ, "record must be exactly 64 bytes");
 
-static const char *TAG = "bohun_bbx";
+static const char *TAG = "bioho_bbx";
 static const esp_partition_t *s_part;
 static SemaphoreHandle_t s_lock;
 static uint32_t s_boot;
@@ -64,8 +64,8 @@ static const char *kind_name(uint8_t k)
     case BBX_ERR5XX:   return "ERR5XX";
     case BBX_OOM:      return "OOM";
     case BBX_HEAPLOW:  return "HEAPLOW";
-    case BBX_MASK_ON:  return "MASK_ON";
-    case BBX_MASK_OFF: return "MASK_OFF";
+    case BBX_CROWN_ON:  return "CROWN_ON";
+    case BBX_CROWN_OFF: return "CROWN_OFF";
     case BBX_OTA_IN:   return "OTA_IN";
     case BBX_OTA_OK:   return "OTA_OK";
     case BBX_CHRON:    return "CHRON";

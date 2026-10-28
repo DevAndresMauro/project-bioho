@@ -1,9 +1,9 @@
-/* bohun OTA: firmware arrives over the fabric, no cable involved.
+/* bioho OTA: firmware arrives over the fabric, no cable involved.
  * POST the raw .bin to /ota with the shared-secret header; the image lands in
  * the inactive OTA slot, boot flips, node reboots. Trust model: a compile-time
  * shared secret over TLS, on a door that never leaves the LAN.
  * Update ritual per node (build variant must match the board!):
- *   curl -k -H "X-Bohun-Key: $BOHUN_OTA_KEY" --data-binary @build.lilygo/bohun_eth.bin https://<node>:8443/ota
+ *   curl -k -H "X-Bioho-Key: $BIOHO_OTA_KEY" --data-binary @build.lilygo/bioho_eth.bin https://<node>:8443/ota
  *   (admin port 8443 only - 443 never carries /ota)
  */
 #include <string.h>
@@ -19,9 +19,9 @@
 #include "esp_app_desc.h"
 #include "esp_app_format.h"
 
-static const char *TAG = "bohun_ota";
+static const char *TAG = "bioho_ota";
 #include "secrets.h"
-static const char *OTA_KEY = BOHUN_OTA_KEY;
+static const char *OTA_KEY = BIOHO_OTA_KEY;
 
 /* Compare in constant time. strcmp bails at the first wrong byte, so response
  * timing leaks how many leading bytes an attacker guessed right - over a LAN that
@@ -39,8 +39,8 @@ bool ota_key_ok(const char *given)
 
 esp_err_t ota_post_handler(httpd_req_t *req)
 {
-    char key[BOHUN_KEY_BUF] = {0};
-    if (httpd_req_get_hdr_value_str(req, "X-Bohun-Key", key, sizeof(key)) != ESP_OK ||
+    char key[BIOHO_KEY_BUF] = {0};
+    if (httpd_req_get_hdr_value_str(req, "X-Bioho-Key", key, sizeof(key)) != ESP_OK ||
         !ota_key_ok(key)) {
         httpd_resp_set_status(req, "403 Forbidden");
         httpd_resp_sendstr(req, "bad key\n");
@@ -99,7 +99,7 @@ esp_err_t ota_post_handler(httpd_req_t *req)
         httpd_resp_sendstr(req, "ota_begin failed\n");
         return ESP_OK;
     }
-    swarm_set_ota(true);   /* the Pysar will announce RELEASE ONGOING while we take the image */
+    swarm_set_ota(true);   /* the Vigía will announce RELEASE ONGOING while we take the image */
     blackbox_event(BBX_OTA_IN, 0, "%d KB inbound", req->content_len / 1024);
 
     /* the guard already consumed the head - write it before the rest */

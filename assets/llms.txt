@@ -1,29 +1,29 @@
-# Ivan Bohun - a self-hosted swarm
+# Project Biohó - a self-hosted palenque
 
-> This site is served from six ESP32-S3 microcontrollers in a 10-inch rack in
-> a London flat, not from a cloud provider. Four "serving blades" share one
-> immortal MAC address that the elected leader wears like a mask; the leader
-> serves no pages itself - it load-balances every connection to its peers.
-> Two observers never serve a byte and only witness the swarm and paint what
-> they see on their own screens. Built by Kyrylo Novotarskyi, a Principal
-> Engineer in London.
+> This site is served from six ESP32-S3 microcontrollers in one printed shell in
+> a flat in Berlin, not from a cloud provider. Four "serving blades" share one
+> immortal MAC address, the crown, worn by whichever blade won the election.
+> The capitán serves no pages itself - it load-balances every connection to
+> the cimarrones. Two observers, the vigía and the cabildo, never serve a
+> byte and only witness the swarm and paint what they see on their own
+> screens. Built by Andres Arrieta, an electronics and systems engineer from Colombia, living in Berlin.
 
 The page you are reading lives in flash memory, brotli-compressed, behind a
 TLS 1.3 handshake that terminates on a 240 MHz microcontroller. There is no
 origin server, no CDN, no external fonts, scripts or trackers. The whole
-machine - four blades, two screens, a switch, three fans - draws about 22
+machine - four blades, two screens, a switch, two lid fans - draws about 22
 watts.
 
 ## How it works
 
-- **The mask**: a locally administered MAC address no factory ever issued. The
+- **The crown**: a locally administered MAC address no factory ever issued. The
   elected leader writes it into its own Ethernet controller and claims a static
   IP. Lose that node and the next one writes the same address into itself, sends
   a gratuitous ARP so the switch relearns the port, and carries on answering.
 - **The balancer is elected too**: the leader is a layer-4 TCP splicer. It
   never terminates TLS and never parses HTTP - it relays raw bytes to
   whichever blade has the fewest connections in flight, and that blade
-  answers. Kill the leader and the next one takes both the mask and the
+  answers. Kill the leader and the next one takes both the crown and the
   balancing, in under four seconds.
 - **Election**: the lowest-numbered candidate that is *actually serving* leads -
   alive on the radio is not enough, since a blade with a dead wire or a server
@@ -42,9 +42,9 @@ watts.
 
 ## Who built it
 
-Kyrylo Novotarskyi - Principal Engineer, London. Fifteen years in distributed
-systems, performance engineering and reliability. Previously Pump.fun, Kobalt
-Music Group, Deliveroo, HappyCar, ironSource, Sixt/DriveNow.
+Andres Arrieta - electronics and systems engineer from Barranquilla, living in Berlin. MSc in Cybersecurity,
+Universitat de Barcelona (2025). He keeps systems running, and where he can he builds, improves, and secures them,
+with AI in the loop. The swarm is one of those builds.
 
 ## Endpoints
 

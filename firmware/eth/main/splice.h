@@ -1,13 +1,13 @@
-/* splice.h - the otaman's splicer.
+/* splice.h - the capitán's splicer.
  *
  * An L4 TCP splicer that balances the public port across every OTHER
  * alive+serving blade, fed by the swarm roster. TLS terminates on the
  * backends; this module never parses a byte it moves.
  *
  * EVERY blade runs it, permanently: it binds 0.0.0.0 on the public port, but
- * only the blade wearing the mask holds the address the router forwards to -
- * so the mask alone decides who receives public traffic, and a leadership
- * change moves the load with zero listener churn. CONFIG_BOHUN_SPLICE_TEST
+ * only the blade wearing the crown holds the address the router forwards to -
+ * so the crown alone decides who receives public traffic, and a leadership
+ * change moves the load with zero listener churn. CONFIG_BIOHO_SPLICE_TEST
  * adds per-connection receipts and a heap trap, for bench instrumentation.
  */
 #pragma once
@@ -47,7 +47,7 @@ void splice_start(void);
  * swarm.c for builds without a splicer. */
 bool splice_is_up(void);
 
-/* Called just before this node gives up the mask. Every in-flight pair is about
+/* Called just before this node gives up the crown. Every in-flight pair is about
  * to be severed anyway - the interface goes down and the address changes - so
  * close them cleanly rather than letting them die as resets. Asynchronous by
  * contract: this requests the drain and waits briefly; the splice task itself

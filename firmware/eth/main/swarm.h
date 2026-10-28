@@ -26,8 +26,8 @@ uint8_t swarm_own_update_pct(void);
 int     swarm_peers_heard(void);               /* peers currently alive on the radio */
 void    swarm_repin_channel(void);             /* restore the pinned ESP-NOW channel */
 
-/* the mask's fixed identity, for the display to show */
-/* ONE definition of the mask, in both shapes callers need. mask.c held the
+/* the crown's fixed identity, for the display to show */
+/* ONE definition of the crown, in both shapes callers need. crown.c held the
  * bytes and swarm.h the string; changing one silently left the other lying. */
 #define SWARM_VMAC_BYTES { 0x02, 0x41, 0x43, 0x4c, 0x44, 0x01 }
 #define SWARM_VMAC_STR "02:41:43:4c:44:01"
@@ -54,8 +54,8 @@ typedef struct {
                            * derive the same figure from err_kind[0..2]. */
     bool link_up;         /* Ethernet is up (not merely the radio) */
     bool serving;         /* the TLS server is listening - if false, this node is BOOTING */
-    uint16_t err_kind[SERVE_ERR_KINDS];   /* which errors, for the kobzar's table */
-    const char *role;     /* "otaman" / "kozak" / "pysar" */
+    uint16_t err_kind[SERVE_ERR_KINDS];   /* which errors, for the cabildo's table */
+    const char *role;     /* "capitán" / "cimarrón" / "vigía" */
     bool updating;        /* this node is receiving an OTA right now */
     uint8_t update_pct;   /* OTA image received, 0-100 */
     uint8_t loss_pct;     /* heartbeat loss %% (0 = perfect delivery) */
@@ -77,11 +77,9 @@ typedef struct {
     /* v15 - the node's firmware version (its variant's version.txt integer).
      * 0 = a pre-v15 image: render as "-", never as a plausible v0. */
     uint16_t fw_ver;
-    /* v16 - the conversion ledger, serve.h's canonical slug order */
-    uint16_t clicks[SERVE_CLICK_KINDS];
 } swarm_snap_entry_t;
 
-/* THE OTAMAN'S LEDGER, as seen from anywhere. On the leader it is read live
+/* THE CAPITAN'S LEDGER, as seen from anywhere. On the leader it is read live
  * from the splicer; everywhere else (including both observers) it is whatever
  * the leader last gossiped (v10/v12). valid=false means nobody is balancing
  * or the leader is still on a pre-v10 image. */
@@ -96,7 +94,7 @@ typedef struct {
 } swarm_lb_view_t;
 void swarm_lb_view(swarm_lb_view_t *out);
 
-/* THE RADIO TAIL - every heartbeat heard, newest first, for the kobzar's
+/* THE RADIO TAIL - every heartbeat heard, newest first, for the cabildo's
  * gossip page. gap = heartbeats missed from that sender since the previous
  * one heard (seq arithmetic, capped at 99). Ring covers the last ~45 s of a
  * six-member fleet at 1 Hz. */
@@ -110,7 +108,7 @@ typedef struct {
 } swarm_radio_evt_t;
 int swarm_radio_tail(swarm_radio_evt_t *out, int max);   /* newest first */
 
-/* short uppercase name for an esp_reset_reason_t, for the kobzar's chronicle */
+/* short uppercase name for an esp_reset_reason_t, for the cabildo's chronicle */
 const char *swarm_reset_reason_str(uint8_t r);
 
 /* fill entries[] (up to max) with the full fleet view (self first, then peers).

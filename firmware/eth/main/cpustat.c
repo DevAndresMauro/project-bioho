@@ -20,7 +20,7 @@
 #include "esp_log.h"
 #include "cpustat.h"
 
-static const char *TAG = "bohun_cpu";
+static const char *TAG = "bioho_cpu";
 
 #define MAX_TASKS 24
 #define WINDOW_MS 2000

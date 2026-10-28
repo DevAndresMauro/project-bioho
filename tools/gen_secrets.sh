@@ -31,22 +31,22 @@ cat > "$OUT" <<HDR
 #pragma once
 
 /* the /ota door on 8443 */
-#define BOHUN_OTA_KEY "$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
+#define BIOHO_OTA_KEY "$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
 
 /* ESP-NOW primary + local master keys, 16 bytes each */
-#define BOHUN_PMK { $(hexbytes 16) }
-#define BOHUN_LMK { $(hexbytes 16) }
+#define BIOHO_PMK { $(hexbytes 16) }
+#define BIOHO_LMK { $(hexbytes 16) }
 
-/* Deployment addressing - EDIT BY HAND for your LAN: the mask's reserved
+/* Deployment addressing - EDIT BY HAND for your LAN: the crown's reserved
  * address (must sit outside your DHCP pool) and your gateway. The values
  * below are documentation placeholders and route nowhere. */
-#define BOHUN_MASK_IP "192.0.2.2"
-#define BOHUN_MASK_GW "192.0.2.1"
+#define BIOHO_CROWN_IP "192.0.2.2"
+#define BIOHO_CROWN_GW "192.0.2.1"
 
 /* Home WiFi for the observers' touch-opened OTA window - fill these in BY
  * HAND; the generator will not guess your network. Empty = window off. */
-#define BOHUN_WIFI_SSID ""
-#define BOHUN_WIFI_PASS ""
+#define BIOHO_WIFI_SSID ""
+#define BIOHO_WIFI_PASS ""
 HDR
 chmod 600 "$OUT"   # belt; the umask above is the braces
 echo "minted $OUT"
@@ -55,5 +55,5 @@ echo
 # scrollback and shell history - the exact exposure this script exists to end.
 echo "export this so the deploy tools can reach the node:"
 cat <<'RECIPE'
-  export BOHUN_OTA_KEY=$(grep BOHUN_OTA_KEY firmware/eth/main/secrets.h | cut -d'"' -f2)
+  export BIOHO_OTA_KEY=$(grep BIOHO_OTA_KEY firmware/eth/main/secrets.h | cut -d'"' -f2)
 RECIPE

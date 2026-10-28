@@ -1,4 +1,4 @@
-/* bohun mission (the 4.3" kobzar): hardware bring-up.
+/* bioho mission (the 4.3" cabildo): hardware bring-up.
  * RGB565 parallel LCD driven by the S3's LCD peripheral (frame buffers in octal
  * PSRAM, bounce buffers in DRAM), GT911 touch over I2C, and the CH422G expander
  * that owns the lines the S3 ran out of: touch reset (IO1), backlight (IO2),
@@ -17,7 +17,7 @@
 #include "esp_log.h"
 #include "panel.h"
 
-static const char *TAG = "bohun_panel";
+static const char *TAG = "bioho_panel";
 
 /* I2C bus (expander + touch) */
 #define PIN_I2C_SDA 8

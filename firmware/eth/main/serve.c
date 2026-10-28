@@ -17,7 +17,6 @@
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "esp_rom_crc.h"
-#include "nvs.h"
 #include "swarm.h"
 #include "blackbox.h"
 #include "cpustat.h"
@@ -101,10 +100,10 @@ extern const uint8_t servercert_end[]   asm("_binary_servercert_pem_end");
 extern const uint8_t prvtkey_start[]    asm("_binary_prvtkey_pem_start");
 extern const uint8_t prvtkey_end[]      asm("_binary_prvtkey_pem_end");
 
-static const char *TAG = "bohun_serve";
+static const char *TAG = "bioho_serve";
 
 /* DRILL STANDBY: scriptable "act dead" for failover drills. Reports NOT
- * READY - the one lever the election, heartbeat, splicers and mask all read.
+ * READY - the one lever the election, heartbeat, splicers and crown all read.
  * Admin-plane only, key-gated, and it ALWAYS expires: a blade cannot be
  * switched off permanently by accident. */
 static int64_t s_standby_until_us;
@@ -123,7 +122,7 @@ static int64_t s_standby_until_us;
 #define PROBE_FAIL_ABORT  6      /* ~42 s of a dead server: capture and reboot */
 /* Stay stood down this long after the last sick-level failure. The election
  * has no stickiness, so without it a leader whose pool merely drained takes
- * the mask straight back: two handovers for one hiccup (bohun_probe_fit). */
+ * the crown straight back: two handovers for one hiccup (bioho_probe_fit). */
 #define PROBE_HOLD_DOWN_MS 60000
 static volatile uint8_t  s_probe_fails;
 static volatile uint32_t s_stood_down_ms;   /* ms stamp of the last sick-level failure, 0 = never */
@@ -131,11 +130,11 @@ static volatile int64_t s_probe_ran_us;
 
 /* A connect needs a PCB from the pool the splicer fills on purpose, so a
  * full node cannot tell "busy" from "dead" by success alone: the errno
- * decides (bohun_probe_verdict). */
-static bohun_probe_t probe_once(uint16_t port)
+ * decides (bioho_probe_verdict). */
+static bioho_probe_t probe_once(uint16_t port)
 {
     int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (fd < 0) return bohun_probe_verdict(false, errno);
+    if (fd < 0) return bioho_probe_verdict(false, errno);
     int fl = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, fl | O_NONBLOCK);
     struct sockaddr_in a = {
@@ -157,7 +156,7 @@ static bohun_probe_t probe_once(uint16_t port)
         err = errno;
     }
     close(fd);
-    return bohun_probe_verdict(err == 0, err);
+    return bioho_probe_verdict(err == 0, err);
 }
 
 static void probe_task(void *arg)
@@ -165,26 +164,26 @@ static void probe_task(void *arg)
     (void)arg;
     vTaskDelay(pdMS_TO_TICKS(20000));    /* let the servers finish coming up */
     for (;;) {
-        bohun_probe_t v;
+        bioho_probe_t v;
         splice_stats_t st;
-        if (splice_stats_get(&st) && !bohun_probe_room(st.busy, CONFIG_LWIP_MAX_ACTIVE_TCP)) {
-            v = BOHUN_PROBE_BUSY;   /* the splicer holds the pool - do not spend two blocks to learn that */
+        if (splice_stats_get(&st) && !bioho_probe_room(st.busy, CONFIG_LWIP_MAX_ACTIVE_TCP)) {
+            v = BIOHO_PROBE_BUSY;   /* the splicer holds the pool - do not spend two blocks to learn that */
         } else {
-            v = probe_once(CONFIG_BOHUN_PUBLIC_PORT);
+            v = probe_once(CONFIG_BIOHO_PUBLIC_PORT);
         }
         s_probe_ran_us = esp_timer_get_time();
         uint8_t before = s_probe_fails;
-        s_probe_fails = bohun_probe_streak(before, v);
-        if (v == BOHUN_PROBE_OK) {
+        s_probe_fails = bioho_probe_streak(before, v);
+        if (v == BIOHO_PROBE_OK) {
             if (before) {
                 ESP_LOGW(TAG, "self-probe recovered after %d failures", before);
             }
-        } else if (v == BOHUN_PROBE_BUSY) {
+        } else if (v == BIOHO_PROBE_BUSY) {
             /* the pool is full: that is load, not death - the streak stands still */
             ESP_LOGW(TAG, "self-probe could not run: no socket/PCB free (streak stays %d)", before);
         } else {
             ESP_LOGE(TAG, "SELF-PROBE FAILED (%d): nothing can open :%d on this node",
-                     s_probe_fails, CONFIG_BOHUN_PUBLIC_PORT);
+                     s_probe_fails, CONFIG_BIOHO_PUBLIC_PORT);
             if (s_probe_fails >= PROBE_FAIL_SICK) {
                 s_stood_down_ms = (uint32_t)(s_probe_ran_us / 1000);
             }
@@ -224,11 +223,11 @@ static esp_err_t root_get_handler(httpd_req_t *req)
     int64_t t0 = esp_timer_get_time();
     char ae[96] = "";
     bool br = httpd_req_get_hdr_value_str(req, "Accept-Encoding", ae, sizeof(ae)) == ESP_OK
-              && bohun_accepts_br(ae);   /* truncated/absent header falls back to gzip - always safe */
+              && bioho_accepts_br(ae);   /* truncated/absent header falls back to gzip - always safe */
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Content-Encoding", br ? "br" : "gzip");
     httpd_resp_set_hdr(req, "Vary", "Accept-Encoding");
-    httpd_resp_set_hdr(req, "X-Bohun-Build", build_id());
+    httpd_resp_set_hdr(req, "X-Bioho-Build", build_id());
     /* content tag: size-crc of the embedded page, so fleet_check catches page-only
      * drift that a serve.c compile stamp cannot (idempotent lazy init - races are benign) */
     /* over BOTH encodings: a gz-only refresh must not read as an unchanged
@@ -242,7 +241,7 @@ static esp_err_t root_get_handler(httpd_req_t *req)
                  (unsigned)gzl, (unsigned)esp_rom_crc32_le(0, page_gz_start, gzl),
                  (unsigned)brl, (unsigned)esp_rom_crc32_le(0, page_br_start, brl));
     }
-    httpd_resp_set_hdr(req, "X-Bohun-Page", page_tag);
+    httpd_resp_set_hdr(req, "X-Bioho-Page", page_tag);
 
     const uint8_t *body = br ? page_br_start : page_gz_start;
     size_t blen = br ? (size_t)(page_br_end - page_br_start)
@@ -271,7 +270,7 @@ static esp_err_t favicon_get_handler(httpd_req_t *req)
     int64_t t0 = esp_timer_get_time();
     char ae[96] = "";
     bool has_ae = httpd_req_get_hdr_value_str(req, "Accept-Encoding", ae, sizeof(ae)) == ESP_OK;
-    bool br = has_ae && bohun_accepts_br(ae);
+    bool br = has_ae && bioho_accepts_br(ae);
     bool gz = has_ae && strstr(ae, "gzip") != NULL;
 
     /* a 32x32 32bpp icon is almost entirely redundancy: 4286 B raw, 136 gzipped,
@@ -328,7 +327,7 @@ static bool origin_is_self(httpd_req_t *req)
     }
     char *colon = strchr(host, ':');
     if (colon) *colon = '\0';
-    return bohun_origin_host_ok(origin, host);   /* full-label match: 1.2.3.4.evil.com must not pass */
+    return bioho_origin_host_ok(origin, host);   /* full-label match: 1.2.3.4.evil.com must not pass */
 }
 
 static esp_err_t roster_get_handler(httpd_req_t *req)
@@ -416,100 +415,6 @@ static const httpd_uri_t og_uri     = { .uri = "/og.png",     .method = HTTP_GET
 static const httpd_uri_t llms_uri   = { .uri = "/llms.txt",   .method = HTTP_GET, .handler = text_get_handler };
 static const httpd_uri_t robots_uri = { .uri = "/robots.txt", .method = HTTP_GET, .handler = text_get_handler };
 
-/* ---- THE CONVERSION LEDGER ----------------------------------------------
- * Six links on the page matter more than the page: four foundation buttons,
- * the direct-trust Monzo link, the public nomenclature sheet. Each carries
- * data-c="<slug>" and a click fires sendBeacon POST /c?k=<slug> at the same
- * origin - counted here, kept in NVS, summed across the fleet by
- * tools/conversions.sh. No third party ever sees a visitor.
- *
- * /c is public and unauthenticated (it must be - browsers call it), so its
- * blast radius is bounded: six fixed slugs, counters saturate, and NVS is
- * committed at most once per slug per minute - a hostile click loop can lie
- * about generosity but cannot wear out the flash. RAM is the truth between
- * commits; a power cut forfeits at most one minute of one slug's clicks. */
-#define CLICK_KINDS SERVE_CLICK_KINDS
-static const char *CLICK_SLUG[CLICK_KINDS] =
-    { "savelife", "prytula", "hospitallers", "u24", "trust", "nomenclature" };
-static uint32_t s_clicks[CLICK_KINDS];
-static int64_t  s_click_commit_us[CLICK_KINDS];
-static nvs_handle_t s_click_nvs;
-
-const uint32_t *serve_click_counts(void) { return s_clicks; }
-
-static void clicks_load(void)
-{
-    if (nvs_open("clicks", NVS_READWRITE, &s_click_nvs) != ESP_OK) {
-        s_click_nvs = 0;
-        return;
-    }
-    for (int i = 0; i < CLICK_KINDS; i++) {
-        nvs_get_u32(s_click_nvs, CLICK_SLUG[i], &s_clicks[i]);
-    }
-}
-
-static esp_err_t click_post_handler(httpd_req_t *req)
-{
-    char q[48], k[24] = "";
-    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK) {
-        httpd_query_key_value(q, "k", k, sizeof(k));
-    }
-    for (int i = 0; i < CLICK_KINDS; i++) {
-        if (strcmp(k, CLICK_SLUG[i]) == 0) {
-            if (s_clicks[i] != UINT32_MAX) s_clicks[i]++;
-            int64_t now = esp_timer_get_time();
-            if (s_click_nvs && now - s_click_commit_us[i] > 60 * 1000000LL) {
-                s_click_commit_us[i] = now;
-                nvs_set_u32(s_click_nvs, CLICK_SLUG[i], s_clicks[i]);
-                nvs_commit(s_click_nvs);
-            }
-            httpd_resp_set_status(req, "204 No Content");
-            httpd_resp_send(req, NULL, 0);
-            return ESP_OK;
-        }
-    }
-    httpd_resp_set_status(req, "404 Not Found");
-    httpd_resp_send(req, NULL, 0);
-    return ESP_OK;
-}
-static const httpd_uri_t click_beacon = { .uri = "/c", .method = HTTP_POST, .handler = click_post_handler };
-
-/* The whole fleet's tallies from any one blade, admin plane. Peers arrive by
- * heartbeat (v16), self is live - the splicer scatters each visitor's beacons
- * across backends, so per-blade rows AND the sum are both told here. */
-static esp_err_t clicks_admin_handler(httpd_req_t *req)
-{
-    static char b[1024];   /* admin instance = its own task, same as roster */
-    swarm_snap_entry_t e[8];
-    int n = swarm_snapshot(e, 8, NULL);
-    uint32_t sum[CLICK_KINDS] = {0};
-    int p = snprintf(b, sizeof(b), "{\"blades\":{");
-    bool first = true;
-    for (int i = 0; i < n; i++) {
-        if (!e[i].eligible) continue;   /* observers never count clicks */
-        p += snprintf(b + p, sizeof(b) - p, "%s\"%s\":{",
-                      first ? "" : ",", e[i].shortname ? e[i].shortname : e[i].name);
-        first = false;
-        for (int k = 0; k < CLICK_KINDS; k++) {
-            uint32_t v = e[i].self ? s_clicks[k] : e[i].clicks[k];
-            sum[k] += v;
-            p += snprintf(b + p, sizeof(b) - p, "%s\"%s\":%lu", k ? "," : "",
-                          CLICK_SLUG[k], (unsigned long)v);
-        }
-        p += snprintf(b + p, sizeof(b) - p, "}");
-    }
-    p += snprintf(b + p, sizeof(b) - p, "},\"fleet\":{");
-    for (int k = 0; k < CLICK_KINDS; k++) {
-        p += snprintf(b + p, sizeof(b) - p, "%s\"%s\":%lu", k ? "," : "",
-                      CLICK_SLUG[k], (unsigned long)sum[k]);
-    }
-    p += snprintf(b + p, sizeof(b) - p, "}}");
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, b, p);
-    return ESP_OK;
-}
-static const httpd_uri_t clicks_admin = { .uri = "/clicks", .method = HTTP_GET, .handler = clicks_admin_handler };
-
 /* The same view, plus each node's address - admin plane only. Port 8443 is never
  * forwarded, so this stays on the LAN by construction; the public /roster on 443
  * remains scrubbed. Lets tooling ask the fleet where its members are. */
@@ -537,8 +442,8 @@ static const httpd_uri_t cpu_uri  = { .uri = "/cpu", .method = HTTP_GET, .handle
  * /ota - this rewrites the node's history, so it wants the same door. */
 static esp_err_t reset_post_handler(httpd_req_t *req)
 {
-    char key[BOHUN_KEY_BUF] = {0};
-    if (httpd_req_get_hdr_value_str(req, "X-Bohun-Key", key, sizeof(key)) != ESP_OK
+    char key[BIOHO_KEY_BUF] = {0};
+    if (httpd_req_get_hdr_value_str(req, "X-Bioho-Key", key, sizeof(key)) != ESP_OK
         || !ota_key_ok(key)) {
         httpd_resp_set_status(req, "403 Forbidden");
         httpd_resp_sendstr(req, "bad key\n");
@@ -551,11 +456,11 @@ static esp_err_t reset_post_handler(httpd_req_t *req)
 static const httpd_uri_t reset_uri = { .uri = "/reset", .method = HTTP_POST, .handler = reset_post_handler };
 
 /* POST /standby?s=NN - stand this blade down for NN seconds (see the note on
- * s_standby_until_us). Same door and same key as /ota: it can move the mask. */
+ * s_standby_until_us). Same door and same key as /ota: it can move the crown. */
 static esp_err_t standby_post_handler(httpd_req_t *req)
 {
-    char key[BOHUN_KEY_BUF] = {0};
-    if (httpd_req_get_hdr_value_str(req, "X-Bohun-Key", key, sizeof(key)) != ESP_OK
+    char key[BIOHO_KEY_BUF] = {0};
+    if (httpd_req_get_hdr_value_str(req, "X-Bioho-Key", key, sizeof(key)) != ESP_OK
         || !ota_key_ok(key)) {
         httpd_resp_set_status(req, "403 Forbidden");
         httpd_resp_sendstr(req, "bad key\n");
@@ -572,7 +477,7 @@ static esp_err_t standby_post_handler(httpd_req_t *req)
     if (secs < 0)              secs = 0;              /* 0 = come back now */
     if (secs > STANDBY_MAX_S)  secs = STANDBY_MAX_S;
     s_standby_until_us = secs ? esp_timer_get_time() + (int64_t)secs * 1000000 : 0;
-    ESP_LOGW(TAG, "STANDBY for %d s - reporting not-ready, dropping the mask if held", secs);
+    ESP_LOGW(TAG, "STANDBY for %d s - reporting not-ready, dropping the crown if held", secs);
     blackbox_event(BBX_SPLICE, (uint16_t)secs, "drill: standby %d s", secs);
     char msg[64];
     int n = snprintf(msg, sizeof(msg), "standby %d s\n", secs);
@@ -586,8 +491,8 @@ static const httpd_uri_t standby_uri = { .uri = "/standby", .method = HTTP_POST,
  * an open redirect, and a hardcoded LAN fallback would leak the private address to
  * any Host-less HTTP/1.0 probe - so the destination is ours or the request is refused. */
 static const char *const REDIRECT_HOSTS[] = {
-    "kyrylonovotarskyi.com",
-    "www.kyrylonovotarskyi.com",
+    "yourwebsite.com",
+    "www.yourwebsite.com",
 };
 
 static esp_err_t redirect_handler(httpd_req_t *req)
@@ -608,7 +513,7 @@ static esp_err_t redirect_handler(httpd_req_t *req)
      * back an address the requester already knows discloses nothing; a
      * hardcoded fallback answering a Host-less probe would. This keeps a typed
      * private literal working on the bench without opening that hole. */
-    if (!dest && bohun_is_private_literal(host)) {
+    if (!dest && bioho_is_private_literal(host)) {
         dest = host;
     }
     if (!dest) {
@@ -642,8 +547,8 @@ bool serve_is_ready(void)
      * its own loopback has no business being elected or handed traffic, however
      * cleanly it started. This is the line that stops the fleet trusting a
      * corpse's word for it. Busy is not dead, and a node that stood down stays
-     * down for a hold - both rules are bohun_probe_fit() in logic.h. */
-    if (!bohun_probe_fit(s_probe_fails, PROBE_FAIL_SICK, s_stood_down_ms,
+     * down for a hold - both rules are bioho_probe_fit() in logic.h. */
+    if (!bioho_probe_fit(s_probe_fails, PROBE_FAIL_SICK, s_stood_down_ms,
                          (uint32_t)(esp_timer_get_time() / 1000), PROBE_HOLD_DOWN_MS)) {
         return false;
     }
@@ -739,7 +644,7 @@ void serve_start(void)
     ssl_common(&pub);
     /* configurable so the splicer can own :443 while every blade's TLS
      * server listens on the backend port (see Kconfig: the port split) */
-    pub.port_secure = CONFIG_BOHUN_PUBLIC_PORT;
+    pub.port_secure = CONFIG_BIOHO_PUBLIC_PORT;
     /* TCP_NODELAY: sender Nagle x an lwIP peer's 250 ms delayed ACK
      * quantizes every spliced flight. Mandatory behind the
      * splicer, harmless for direct visitors. */
@@ -780,10 +685,8 @@ void serve_start(void)
         httpd_register_uri_handler(server, &og_uri);
         httpd_register_uri_handler(server, &llms_uri);
         httpd_register_uri_handler(server, &robots_uri);
-        clicks_load();
-        httpd_register_uri_handler(server, &click_beacon);
         register_err_counters(server);
-        s_ready = true;   /* only now is claiming the mask honest */
+        s_ready = true;   /* only now is claiming the crown honest */
         ESP_LOGI(TAG, "public: / /roster over TLS on port %d (no /ota here)", pub.port_secure);
     } else {
         ESP_LOGE(TAG, "httpd_ssl_start (public) failed");
@@ -810,7 +713,6 @@ void serve_start(void)
         httpd_register_uri_handler(admin, &bbx_uri);    /* the flight recorder */
         httpd_register_uri_handler(admin, &core_uri);   /* raw panic core, if any */
         httpd_register_uri_handler(admin, &cpu_uri);    /* where the CPU actually goes */
-        httpd_register_uri_handler(admin, &clicks_admin); /* this blade's conversion tallies */
         register_err_counters(admin);
         cpustat_start();
         ESP_LOGI(TAG, "admin: /ota over TLS on port %d - NEVER forward this port", OTA_ADMIN_PORT);
@@ -827,7 +729,7 @@ void serve_start(void)
     red.uri_match_fn = httpd_uri_match_wildcard;
     red.max_uri_handlers = 1;
     red.max_open_sockets = 2;         /* a redirect is one-shot; the default 7 blew the
-                                       * LWIP socket pool and wedged the mask wearer's TLS */
+                                       * LWIP socket pool and wedged the crown wearer's TLS */
     if (httpd_start(&plain, &red) == ESP_OK) {
         httpd_register_uri_handler(plain, &redirect_all);
         register_err_counters(plain);

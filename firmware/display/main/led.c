@@ -1,13 +1,14 @@
-/* bohun LED rail: 6 SK6812 RGBW pixels, one per swarm member.
+/* bioho LED rail: 6 SK6812 RGBW pixels, one per swarm member.
  * px0..px3 = N1..N4, px4 = Display (the host itself - lit rail means it lives),
- * px5 = kobzar. Driven from the display DevKitC: GPIO4 -> 74AHCT125 -> 330R ->
+ * px5 = cabildo. Driven from the display DevKitC: GPIO4 -> 74AHCT125 -> 330R ->
  * px0 Din. One UNCUT strip segment: the strip's own copper is the chain.
  *
  * THE COLOUR LAW (matches the website's roster words):
- *   lost      red solid        booting  amber fast blink
- *   release   amber slow blink benched  amber solid (the balancer skips it)
- *   balancing deep green       serving  faint white
- *   pysar     deepest blue     kobzar   deepest purple
+ *   lost      red solid          booting  white fast blink (W die at 120)
+ *   release   white slow blink   benched  white solid      (W die at 120)
+ *   balancing gold               serving  faint green      (G die at 120)
+ *   vigía     deepest blue       cabildo   deepest purple
+ * White-die states sit under the coloured ones: 120, then the global cap.
  * Every pixel runs under one global brightness cap - a full-brightness rail
  * reads as glare on the rack. Power budget enforced HERE.
  * SK6812 RGBW = 32 bits/px GRBW - not plain WS2812 24-bit; format matters.
@@ -20,13 +21,18 @@
 #include <string.h>
 #include "led.h"
 
-static const char *TAG = "bohun_led";
+static const char *TAG = "bioho_led";
 
 #define LED_GPIO   4
 #define LED_N      6
-#define PX_DISPLAY 4          /* the host's own pixel: lit rail = pysar lives */
-#define PX_KOBZAR  5
+#define PX_DISPLAY 4          /* the host's own pixel: lit rail = vigía lives */
+#define PX_CABILDO 5
 #define BRIGHT_CAP 50         /* /255 = ~20%: one global cap for every pixel */
+#define W_STATUS   120        /* white die: booting, release, benched */
+#define G_SERVING  120        /* green die: a cimarrón that is answering */
+#define GOLD_R     230        /* capitán: #e6c229 */
+#define GOLD_G     194
+#define GOLD_B     41
 
 static led_strip_handle_t s_strip;
 static bool s_blackout;   /* maintenance blackout: nothing lights, nothing winks */
@@ -37,9 +43,11 @@ static uint32_t s_last_uptime[LED_N];   /* to spot a reboot: uptime running back
 
 /* Blink states: led_render() (4 Hz) records what each pixel SHOULD do; a
  * 40 ms animation task does the winking.
- *   BOOTING - alive on radio, TLS not listening: rapid amber.
- *   RELEASE - an OTA landing: slow amber, so the two never read the same. */
-typedef enum { PXA_SOLID = 0, PXA_AMBER_FAST, PXA_AMBER_SLOW } px_anim_t;
+ *   BOOTING - alive on radio, TLS not listening: rapid white.
+ *   RELEASE - an OTA landing: slow white, so the two never read the same.
+ * The blink carries whatever colour s_solid holds. The OTA window still
+ * loads cyan into s_solid; a node release loads the white die. */
+typedef enum { PXA_SOLID = 0, PXA_BLINK_FAST, PXA_BLINK_SLOW } px_anim_t;
 static px_anim_t s_anim[LED_N];
 static uint8_t   s_solid[LED_N][4];   /* r,g,b,w to show when the blink is "on" */
 static portMUX_TYPE s_anim_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -97,7 +105,7 @@ static void led_anim_task(void *arg)
             if (a == PXA_SOLID) {
                 continue;
             }
-            bool on = (a == PXA_AMBER_FAST) ? on_fast : on_slow;
+            bool on = (a == PXA_BLINK_FAST) ? on_fast : on_slow;
             if (on) px(i, c[0], c[1], c[2], c[3]);
             else    px(i, 0, 0, 0, 0);
             touched = true;
@@ -195,9 +203,9 @@ void led_wake(void)
     s_blackout = false;
 }
 
-/* The OTA window's rail voice: every pixel slow-blinks amber, unmistakable
- * from across the room. Applies the amber HERE, immediately - the trigger
- * task calls this at the 4 s threshold and the operator needs the "you can
+/* The OTA window's rail voice: every pixel slow-blinks cyan - a colour no
+ * roster state uses, so it cannot be misread. Applies the cyan HERE,
+ * immediately - the trigger task calls this at the 4 s threshold and the operator needs the "you can
  * let go" cue now, not on the next ~1 Hz render tick. led_render holds off
  * while active and repaints normally the tick after it clears. */
 static bool s_ota_rail;
@@ -206,9 +214,9 @@ void led_ota(bool active)
     if (active && !s_ota_rail) {
         taskENTER_CRITICAL(&s_anim_lock);
         for (int i = 0; i < LED_N; i++) {
-            s_anim[i] = PXA_AMBER_SLOW;
-            s_solid[i][0] = 255; s_solid[i][1] = 140;
-            s_solid[i][2] = 0;   s_solid[i][3] = 0;
+            s_anim[i] = PXA_BLINK_SLOW;
+            s_solid[i][0] = 0;   s_solid[i][1] = 255;
+            s_solid[i][2] = 255; s_solid[i][3] = 0;
         }
         taskEXIT_CRITICAL(&s_anim_lock);
     }
@@ -221,9 +229,9 @@ void led_render(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
     if (s_blackout) return;   /* re-checked under the lock before the refresh */
 
     /* a fast OTA can otherwise flash past between samples - latch the release
-     * amber so it is always seen (the rail samples at 4 Hz; lost and booting are
+     * white so it is always seen (the rail samples at 4 Hz; lost and booting are
      * long enough at that rate to need no latch of their own) */
-    static int64_t amber_until_us[LED_N];
+    static int64_t release_until_us[LED_N];
     int64_t now = esp_timer_get_time();
 
 #if LED_COLOR_PROBE
@@ -255,23 +263,23 @@ void led_render(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
         int p = -1;
         if (m->id >= 1 && m->id <= 4) p = m->id - 1;   /* px0..3 = N1..N4 */
         else if (m->id == 6) p = PX_DISPLAY;
-        else if (m->id == 7) p = PX_KOBZAR;
+        else if (m->id == 7) p = PX_CABILDO;
         if (p < 0) continue;
-        if (m->updating) amber_until_us[p] = now + 6000000;
+        if (m->updating) release_until_us[p] = now + 6000000;
 
         /* A release ends when the node comes back, not when a timer says so.
          * The latch is set from the LAST updating heartbeat, so it can outlive
-         * the reboot it announced and keep a returned node amber. Uptime running
-         * backwards is an unambiguous reboot: the release is over, stop
-         * latching. */
+         * the reboot it announced and keep a returned node blinking white.
+         * Uptime running backwards is an unambiguous reboot: the release is
+         * over, stop latching. */
         if (m->uptime_s < s_last_uptime[p]) {
-            amber_until_us[p] = 0;
+            release_until_us[p] = 0;
         }
         s_last_uptime[p] = m->uptime_s;
 
         /* A node can be perfectly alive on the radio and serving nothing at
          * all - a failure the rail must not hide. Booting outranks every other
-         * colour except death, because a green pixel on a node that cannot
+         * colour except death, because a serving green on a node that cannot
          * answer a request is a lie. */
         bool booting = m->alive && m->eligible && !m->serving;
         bool benched = m->alive && m->eligible && m->id != leader_id && lb.valid
@@ -279,15 +287,15 @@ void led_render(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
         px_anim_t anim = PXA_SOLID;
         uint8_t r = 0, g = 0, b = 0, w = 0;
 
-        if (!m->alive)                    { r = 255; }                       /* lost: red */
-        else if (booting)                 { r = 255; g = 140; anim = PXA_AMBER_FAST; }
-        else if (now < amber_until_us[p]) { r = 255; g = 140; anim = PXA_AMBER_SLOW; } /* release */
-        else if (m->id == 7)              { r = 90; b = 255; }               /* kobzar: deepest purple */
-        else if (m->id == 6)              { b = 255; }                       /* pysar peer: deepest blue */
-        else if (m->id == leader_id)      { g = 255; }                       /* otaman: deep green */
-        else if (benched)                 { r = 255; g = 140; }              /* benched: amber solid */
-        else if (m->eligible)             { w = 120; }                       /* kozak: faint white */
-        else                              { r = 90; b = 255; }               /* other witness: purple */
+        if (!m->alive)                      { r = 255; }                         /* lost: red */
+        else if (booting)                   { w = W_STATUS; anim = PXA_BLINK_FAST; }
+        else if (now < release_until_us[p]) { w = W_STATUS; anim = PXA_BLINK_SLOW; } /* release */
+        else if (m->id == 7)                { r = 90; b = 255; }                 /* cabildo: deepest purple */
+        else if (m->id == 6)                { b = 255; }                         /* vigía peer: deepest blue */
+        else if (m->id == leader_id)        { r = GOLD_R; g = GOLD_G; b = GOLD_B; } /* capitán: gold */
+        else if (benched)                   { w = W_STATUS; }                    /* benched: white solid */
+        else if (m->eligible)               { g = G_SERVING; }                   /* cimarrón: faint green */
+        else                                { r = 90; b = 255; }                 /* other witness: purple */
 
         taskENTER_CRITICAL(&s_anim_lock);
         s_anim[p] = anim;
@@ -296,7 +304,7 @@ void led_render(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
         px(p, r, g, b, w);
     }
     /* the host's own pixel: deepest blue while the air carries heartbeats,
-     * red in silence. (The id==6 branch covers the pysar as a PEER on any
+     * red in silence. (The id==6 branch covers the vigía as a PEER on any
      * other rail; this covers our own.) */
     taskENTER_CRITICAL(&s_anim_lock);
     s_anim[PX_DISPLAY] = PXA_SOLID;

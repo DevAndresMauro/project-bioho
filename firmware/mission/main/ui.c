@@ -1,18 +1,16 @@
-/* bohun mission (the kobzar, 4.3"): the mission-control dashboard.
- * 800x480, LVGL 9, the site's palette, FIVE tiles (swipe right through them):
+/* bioho mission (the cabildo, 4.3"): the mission-control dashboard.
+ * 800x480, LVGL 9, the site's palette, FOUR tiles (swipe right through them):
  *   tile 0 - mission control: node rows with status + served columns, the
  *            CHRONICLE, fleet-wide traffic chart (requests + p50), quorum,
  *            fleet availability, reign records, RELEASE progress on rows.
  *   tile 1 - THE LEDGER: per-blade HTTP 200 counts above the refusal table,
  *            fleet 200-OK total in the corner.
- *   tile 2 - CONVERSIONS: the click table per blade, fleet sum, and the
- *            kobzar's own NVS archive of what wiped blades forgot.
- *   tile 3 - THE RADIO: the gossip tail, every heartbeat heard in the last
+ *   tile 2 - THE RADIO: the gossip tail, every heartbeat heard in the last
  *            45 s with rssi, seq and missed-frame markers.
- *   tile 4 - "what the world sees": the served page baked to RGB565 at build
+ *   tile 3 - "what the world sees": the served page baked to RGB565 at build
  *            time (render_page_asset.py).
  * Footer tap blanks the backlight (CH422G on/off); any touch wakes.
- * Longest mask reign persists in NVS - the hall of fame survives reboots.
+ * Longest crown reign persists in NVS - the hall of fame survives reboots.
  * NOTE: LVGL's Montserrat builds carry ASCII only - no U+00B7 middle dot
  * (renders as tofu). Separators are plain dashes on glass.
  */
@@ -21,7 +19,7 @@
 #include <stdarg.h>
 #include "esp_lvgl_port.h"
 #include "esp_timer.h"
-#include "esp_system.h"   /* esp_reset_reason - the kobzar states its own boot cause */
+#include "esp_system.h"   /* esp_reset_reason - the cabildo states its own boot cause */
 #include "nvs.h"
 #include "lwip/ip4_addr.h"
 #include "vitals.h"   /* VITALS_TEMP_NONE - "this node never said" */
@@ -30,17 +28,28 @@
 #include "ota_window.h"
 #include "esp_app_desc.h"
 
-#define C_BG     0x0a0a0c
-#define C_CARD   0x111115
-#define C_CARD2  0x16161c
-#define C_BORDER 0x1e1e25
+#define C_BG     0x070907
+#define C_CARD   0x0e120e
+#define C_CARD2  0x141a14
+#define C_BORDER 0x1a211a
 #define C_TEXT   0xe8e6e3
-#define C_DIM    0x7a7880
-#define C_MUTED  0x4a4850
-#define C_LIME   0xc4f04d
+#define C_DIM    0x7a7f78
+#define C_MUTED  0x4f544d
+#define C_ACCENT   0xe6c229
 #define C_ALIVE  0x43e86a
 #define C_WARN   0xffb020
 #define C_LOST   0xff5555
+
+/* Montserrat and unscii on the glass are ASCII. /roster keeps the accents. */
+static const char *glass_role(const char *role)
+{
+    if (!role) return "";
+    if (strcmp(role, "capitán") == 0) return "capitan";
+    if (strcmp(role, "cimarrón") == 0) return "cimarron";
+    if (strcmp(role, "vigía") == 0) return "vigia";
+    if (strcmp(role, "cabildo") == 0) return "cabildo";
+    return role;
+}
 
 #define MAX_ROWS   8
 #define ROW_Y      72
@@ -71,14 +80,6 @@ static lv_obj_t *s_err_vals[ERR_COLS];   /* one multi-line label of counts per n
 static lv_obj_t *s_err_node[ERR_COLS];
 static lv_obj_t *s_col_served[ERR_COLS]; /* the 200-OK line above each refusal column */
 static lv_obj_t *s_ok_total;             /* fleet 200-OK, corner of the ledger tile */
-/* THE CONVERSIONS tile: the admin /clicks view on glass, plus the archive.
- * The kobzar folds any count a blade LOSES (wipe, retable, replacement) into
- * an NVS-backed base, so ALL TIME outlives every blade's flash - the kobzar
- * is the fleet's long memory, same as its reign records. */
-static lv_obj_t *s_conv_lbl;
-static uint32_t s_conv_base[SERVE_CLICK_KINDS];
-static uint16_t s_conv_last[8][SERVE_CLICK_KINDS];
-static nvs_handle_t s_conv_nvs;
 static lv_obj_t *s_avail_lbl;
 static lv_obj_t *s_radio_sum, *s_radio_lbl;   /* tile 2: the gossip tail */
 
@@ -100,7 +101,7 @@ static bool s_have_last_req;
 #include "esp_partition.h"
 static lv_image_dsc_t s_page_dsc;
 
-/* the arms of the Zaporozhian Host, baked small (render_arms_asset.py) */
+/* the palenque seal, baked small (render_arms_asset.py) */
 extern const uint8_t arms_bin_start[] asm("_binary_arms_84x104_bin_start");
 static lv_image_dsc_t s_arms_dsc;
 
@@ -117,7 +118,7 @@ static uint16_t s_hist_fill;
 
 /* 40, not 10. The card still shows five - but the whole point of the tap-through
  * modal is to be able to look BACK, and a ten-deep ring is emptied by a single
- * noisy minute. 40 x 96 = 3.8 KB of static, which the kobzar has. */
+ * noisy minute. 40 x 96 = 3.8 KB of static, which the cabildo has. */
 #define CHRON_N   40
 #define CHRON_LEN 96
 static char s_chron[CHRON_N][CHRON_LEN];
@@ -164,13 +165,13 @@ static void chron_push(const char *fmt, ...)
     char stamp[12];
     chron_stamp(stamp, sizeof(stamp));
     char *slot = s_chron[s_chron_head];
-    int p = snprintf(slot, CHRON_LEN, "#4a4850 %s#  ", stamp);
+    int p = snprintf(slot, CHRON_LEN, "#4f544d %s#  ", stamp);
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(slot + p, CHRON_LEN - p, fmt, ap);
     va_end(ap);
     /* UPPERCASE the whole line for glanceability - but step
-     * over recolor codes: "#c4f04d" must stay lowercase because LVGL's recolor
+     * over recolor codes: "#e6c229" must stay lowercase because LVGL's recolor
      * parser is not guaranteed case-tolerant, and a broken code renders as
      * literal text. A '#' followed by 6 hex chars is a code; any other '#' is
      * a terminator and needs no special care. */
@@ -320,7 +321,7 @@ static void row_click_cb(lv_event_t *ev)
 
     lv_label_set_text_fmt(s_modal_title, "%s  #%s %s#",
                           short_name(m),
-                          (m->id == s_leader_cache) ? "c4f04d" : "7a7880", m->role);
+                          (m->id == s_leader_cache) ? "e6c229" : "7a7f78", glass_role(m->role));
     /* die temperature (heartbeat v9). The sentinel is not a reading: a node on
      * an older image, or one whose sensor would not install, says nothing - and
      * "-" is the honest rendering of that, never a plausible 0.0. */
@@ -455,15 +456,14 @@ void ui_init(lv_display_t *disp)
     lv_obj_set_scrollbar_mode(tv, LV_SCROLLBAR_MODE_OFF);
     s_tile0 = lv_tileview_add_tile(tv, 0, 0, LV_DIR_RIGHT);
     lv_obj_t *tile_err   = lv_tileview_add_tile(tv, 1, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
-    lv_obj_t *tile_conv  = lv_tileview_add_tile(tv, 2, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
-    lv_obj_t *tile_radio = lv_tileview_add_tile(tv, 3, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
-    lv_obj_t *tile1      = lv_tileview_add_tile(tv, 4, 0, LV_DIR_LEFT);
+    lv_obj_t *tile_radio = lv_tileview_add_tile(tv, 2, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
+    lv_obj_t *tile1      = lv_tileview_add_tile(tv, 3, 0, LV_DIR_LEFT);
 
     /* ---- tile 1: the refusal ledger --------------------------------------
      * Availability says how much we turned away; this says WHAT. Deliberately
      * LAN-only - it never appears on the served page, because the shape of your
      * 404s is a map of what people are probing you for. */
-    mk_label(tile_err, 16, 12, &lv_font_montserrat_28, C_LIME, "THE LEDGER");
+    mk_label(tile_err, 16, 12, &lv_font_montserrat_28, C_ACCENT, "THE LEDGER");
     mk_label(tile_err, 16, 46, &lv_font_montserrat_14, C_DIM,
              "what each blade served, and every non-2xx it answered - kept off the public page");
     /* the number the whole shelf exists to grow: HTTP 200s, fleet total */
@@ -507,7 +507,7 @@ void ui_init(lv_display_t *disp)
              "swipe right for the radio, then the page - left for mission control");
 
     /* ---- tile 2: THE RADIO - the gossip tail ---------------------------- */
-    mk_label(tile_radio, 16, 12, &lv_font_montserrat_28, C_LIME, "THE RADIO");
+    mk_label(tile_radio, 16, 12, &lv_font_montserrat_28, C_ACCENT, "THE RADIO");
     mk_label(tile_radio, 16, 46, &lv_font_montserrat_14, C_DIM,
              "every heartbeat heard - esp-now, encrypted, 1 Hz per member");
     s_radio_sum = mk_label(tile_radio, 400, 22, &lv_font_montserrat_14, C_DIM, "-");
@@ -575,61 +575,50 @@ void ui_init(lv_display_t *disp)
                  "page partition is empty - run idf.py flash");
     }
 
-    /* ---- tile 3 in swipe order: the conversions ledger ---- */
-    mk_label(tile_conv, 16, 12, &lv_font_montserrat_28, C_LIME, "CONVERSIONS");
-    mk_label(tile_conv, 16, 46, &lv_font_montserrat_14, C_DIM,
-             "who clicked to give - per blade, fleet sum, and the kobzar's own archive of what wiped blades forgot");
-    {
-        nvs_handle_t h;
-        if (nvs_open("clicks", NVS_READWRITE, &h) == ESP_OK) {
-            s_conv_nvs = h;
-            char key[4] = "c0";
-            for (int k = 0; k < SERVE_CLICK_KINDS; k++) {
-                key[1] = '0' + k;
-                nvs_get_u32(h, key, &s_conv_base[k]);
-            }
-        }
-    }
-    s_conv_lbl = mk_label(tile_conv, 8, 92, &lv_font_unscii_16, 0xffffff, "listening...");
-    lv_label_set_recolor(s_conv_lbl, true);
-    lv_obj_set_width(s_conv_lbl, 784);
-    lv_obj_set_style_text_line_space(s_conv_lbl, 10, 0);
-
     /* ---- tile 0: header ---- */
-    mk_label(s_tile0, 16, 10, &lv_font_montserrat_28, C_LIME, "IVAN BOHUN");
+    mk_label(s_tile0, 16, 10, &lv_font_montserrat_28, C_ACCENT, "BIOHO");
     {
         static char sub[64];   /* app-desc version is a 32-byte field */
-        snprintf(sub, sizeof(sub), "Kobzar - Mission Control - v%s",
+        snprintf(sub, sizeof(sub), "Cabildo - Mission Control - v%s",
                  esp_app_get_description()->version);
         mk_label(s_tile0, 16, 42, &lv_font_montserrat_16, C_DIM, sub);
     }
-    /* ip + vMAC live on the 2.8" pysar; this header carries the VERDICT instead */
+    /* ip + vMAC live on the 2.8" vigía; this header carries the VERDICT instead */
 
-    /* the flag: canonical 2:3, blue over gold, right of the name */
+    /* Colombian flag, 2:3. Yellow is the top half; blue and red split the rest.
+     * It is also the OTA hold surface. */
     lv_obj_t *flag = lv_obj_create(s_tile0);
-    lv_obj_set_pos(flag, 316, 8);   /* clear of the longer kobzar subtitle */
-    lv_obj_set_size(flag, 90, 60);   /* 2:3 canonical, sized to fill the header band */
+    lv_obj_set_pos(flag, 316, 8);   /* clear of the longer cabildo subtitle */
+    lv_obj_set_size(flag, 90, 60);
     lv_obj_set_style_border_color(flag, lv_color_hex(C_BORDER), 0);
     lv_obj_set_style_border_width(flag, 1, 0);
     lv_obj_set_style_radius(flag, 2, 0);
     lv_obj_set_style_pad_all(flag, 0, 0);
-    lv_obj_set_style_bg_color(flag, lv_color_hex(0x0057b7), 0);   /* blue field */
+    lv_obj_set_style_bg_color(flag, lv_color_hex(0xFCD116), 0);   /* yellow, top half */
     lv_obj_remove_flag(flag, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_t *fy = lv_obj_create(flag);
-    lv_obj_set_pos(fy, 0, 29);
-    lv_obj_set_size(fy, 88, 29);
-    lv_obj_set_style_bg_color(fy, lv_color_hex(0xffd700), 0);     /* gold half */
-    lv_obj_set_style_border_width(fy, 0, 0);
-    lv_obj_set_style_radius(fy, 0, 0);
-    lv_obj_remove_flag(fy, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_remove_flag(fy, LV_OBJ_FLAG_CLICKABLE);   /* presses fall through to the flag */
+    /* inner area is 88 x 58 once the 1 px border is in. 29 + 15 + 14. */
+    static const struct { int y, h; uint32_t color; } bands[] = {
+        { 29, 15, 0x003893 },   /* blue */
+        { 44, 14, 0xCE1126 },   /* red */
+    };
+    for (size_t i = 0; i < sizeof(bands) / sizeof(bands[0]); i++) {
+        lv_obj_t *band = lv_obj_create(flag);
+        lv_obj_set_pos(band, 0, bands[i].y);
+        lv_obj_set_size(band, 88, bands[i].h);
+        lv_obj_set_style_bg_color(band, lv_color_hex(bands[i].color), 0);
+        lv_obj_set_style_border_width(band, 0, 0);
+        lv_obj_set_style_radius(band, 0, 0);
+        lv_obj_set_style_pad_all(band, 0, 0);
+        lv_obj_remove_flag(band, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_remove_flag(band, LV_OBJ_FLAG_CLICKABLE);   /* presses fall through to the flag */
+    }
     /* the flag is the OTA hold surface - the footer strip is too thin a
      * target for a 4 s press at the panel's edge */
     lv_obj_add_event_cb(flag, ota_hold_press_cb, LV_EVENT_PRESSED, NULL);
     lv_obj_add_event_cb(flag, ota_hold_press_cb, LV_EVENT_RELEASED, NULL);
     lv_obj_add_event_cb(flag, ota_hold_press_cb, LV_EVENT_PRESS_LOST, NULL);
 
-    /* the arms of the Host fill the gap between the table and the verdict */
+    /* the seal fills the gap between the table and the verdict */
     s_arms_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
     s_arms_dsc.header.cf = LV_COLOR_FORMAT_RGB565;
     s_arms_dsc.header.w = 84;
@@ -710,7 +699,7 @@ void ui_init(lv_display_t *disp)
 
     /* ---- tile 0: the chronicle (repositioned per fleet size) ---- */
     s_chron_card = mk_card(s_tile0, 12, ROW_Y + 6 * ROW_PITCH + 4, 492, 110);
-    /* the card is a doorway: tap it and the scribe opens the whole book */
+    /* the card is a doorway: tap it and the chronicle opens the whole book */
     lv_obj_add_flag(s_chron_card, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_chron_card, chron_card_click_cb, LV_EVENT_CLICKED, NULL);
     mk_label(s_chron_card, 12, 6, &lv_font_montserrat_14, C_MUTED, "CHRONICLE - tap for all");
@@ -722,7 +711,7 @@ void ui_init(lv_display_t *disp)
     /* ---- tile 0: traffic chart ---- */
     lv_obj_t *tc = mk_card(s_tile0, 512, 116, 276, 160);
     mk_label(tc, 12, 8, &lv_font_montserrat_14, C_MUTED, "TRAFFIC  req/s + ms");
-    s_req_now = mk_label(tc, 190, 8, &lv_font_montserrat_14, C_LIME, "");
+    s_req_now = mk_label(tc, 190, 8, &lv_font_montserrat_14, C_ACCENT, "");
     s_lat_now = mk_label(tc, 234, 8, &lv_font_montserrat_14, C_ALIVE, "");
     s_chart = lv_chart_create(tc);
     lv_obj_set_pos(s_chart, 8, 28);
@@ -737,14 +726,14 @@ void ui_init(lv_display_t *disp)
     lv_obj_set_style_border_width(s_chart, 0, 0);
     lv_obj_set_style_line_color(s_chart, lv_color_hex(C_BORDER), LV_PART_MAIN);
     lv_obj_set_style_size(s_chart, 0, 0, LV_PART_INDICATOR);
-    s_ser_req = lv_chart_add_series(s_chart, lv_color_hex(C_LIME), LV_CHART_AXIS_PRIMARY_Y);
+    s_ser_req = lv_chart_add_series(s_chart, lv_color_hex(C_ACCENT), LV_CHART_AXIS_PRIMARY_Y);
     s_ser_lat = lv_chart_add_series(s_chart, lv_color_hex(C_ALIVE), LV_CHART_AXIS_SECONDARY_Y);
 
     /* ---- tile 0: swarm health ---- */
     lv_obj_t *sc = mk_card(s_tile0, 512, 284, 276, 150);
     mk_label(sc, 12, 8, &lv_font_montserrat_14, C_MUTED, "SWARM");
     s_quorum = mk_label(sc, 12, 26, &lv_font_montserrat_28, C_TEXT, "-/-");
-    s_leader = mk_label(sc, 12, 62, &lv_font_montserrat_16, C_LIME, "-");
+    s_leader = mk_label(sc, 12, 62, &lv_font_montserrat_16, C_ACCENT, "-");
     s_gen    = mk_label(sc, 12, 86, &lv_font_montserrat_16, C_DIM, "gen -");
     s_stable = mk_label(sc, 12, 108, &lv_font_montserrat_16, C_MUTED, "reign -");
     s_record_lbl = mk_label(sc, 12, 130, &lv_font_montserrat_14, C_MUTED, "");
@@ -760,7 +749,7 @@ void ui_init(lv_display_t *disp)
 
     /* ---- tile 0: footer = the blank switch ---- */
     lv_obj_t *foot = mk_label(s_tile0, 12, FOOT_Y + 4, &lv_font_montserrat_14, C_MUTED,
-                              "tap - screen off    hold the flag 4s - ota    swipe left - ledger, clicks, radio, the page    " __DATE__);
+                              "tap - screen off    hold the flag 4s - ota    swipe left - ledger, radio, the page    " __DATE__);
     lv_obj_set_width(foot, 776);
     lv_obj_add_flag(foot, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_ext_click_area(foot, 10);
@@ -796,7 +785,7 @@ void ui_init(lv_display_t *disp)
     lv_obj_set_style_line_color(s_modal_chart, lv_color_hex(C_BORDER), LV_PART_MAIN);
     lv_obj_set_style_size(s_modal_chart, 0, 0, LV_PART_INDICATOR);
     s_ser_mrssi = lv_chart_add_series(s_modal_chart, lv_color_hex(C_ALIVE), LV_CHART_AXIS_PRIMARY_Y);
-    s_ser_mlat  = lv_chart_add_series(s_modal_chart, lv_color_hex(C_LIME), LV_CHART_AXIS_SECONDARY_Y);
+    s_ser_mlat  = lv_chart_add_series(s_modal_chart, lv_color_hex(C_ACCENT), LV_CHART_AXIS_SECONDARY_Y);
     mk_label(mc, 20, 312, &lv_font_montserrat_14, C_MUTED, "tap anywhere to close");
     lv_obj_add_flag(s_modal, LV_OBJ_FLAG_HIDDEN);
 
@@ -873,17 +862,17 @@ void ui_init(lv_display_t *disp)
     lvgl_port_unlock();
 
     s_reign_start_us = esp_timer_get_time();
-    /* the scribe opens the book by stating its OWN cause of death - the kobzar
+    /* the cabildo opens the book by stating its OWN cause of death - it
      * watches everyone else, so its reboots would otherwise go unexplained */
     const char *own = swarm_reset_reason_str((uint8_t)esp_reset_reason());
     if (s_record_s) {
         char rec[16];
         fmt_uptime(rec, sizeof(rec), s_record_s);   /* was the literal "(loaded)" */
-        chron_push("Kobzar watching (boot: %s) - record %s held by %s",
+        chron_push("Cabildo watching (boot: %s) - record %s held by %s",
                    own, rec, s_record_holder[0] ? s_record_holder : "?");
     }
     else {
-        chron_push("Kobzar watching (boot: %s)", own);
+        chron_push("Cabildo watching (boot: %s)", own);
     }
 }
 
@@ -899,7 +888,7 @@ void ui_update(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
     lvgl_port_lock(0);
     if (n > MAX_ROWS) n = MAX_ROWS;
 
-    /* sort by id so rows read n1..n4, display, kobzar */
+    /* sort by id so rows read n1..n4, display, cabildo */
     swarm_snap_entry_t s[MAX_ROWS];
     memcpy(s, e, n * sizeof(s[0]));
     for (int i = 1; i < n; i++) {
@@ -915,7 +904,7 @@ void ui_update(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
     const char *leader_name = "-";
     /* FLEET-WIDE aggregates. Since the balancer split, the leader serves
      * nothing - every number worth graphing is a sum or average over the
-     * kozaky. The leader's own counters cover /roster only. */
+     * cimarrones. The leader's own counters cover /roster only. */
     uint32_t fleet_req = 0;
     uint64_t fleet_asked = 0, fleet_bad = 0;
     uint32_t p50_sum = 0, p95_sum = 0;
@@ -963,7 +952,7 @@ void ui_update(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
     s_hist_pos = (s_hist_pos + 1) % HIST_N;
     if (s_hist_fill < HIST_N) s_hist_fill++;
 
-    /* ---- the scribe writes: transitions since the last look ---- */
+    /* ---- the chronicle writes: transitions since the last look ---- */
     for (int i = 0; i < n; i++) {
         const swarm_snap_entry_t *m = &s[i];
         if (m->self || m->id >= ID_MAX) continue;
@@ -1042,13 +1031,13 @@ void ui_update(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
                 record_save();
                 char rt[12];
                 fmt_uptime(rt, sizeof(rt), reign_s);
-                chron_push("#c4f04d new record - %s held the mask %s#", prev_nm, rt);
+                chron_push("#e6c229 new record - %s held the crown %s#", prev_nm, rt);
             }
         }
         s_reign_start_us = now;
-        if (leader_id) chron_push("#c4f04d %s wears the mask# (gen %lu)",
+        if (leader_id) chron_push("#e6c229 %s wears the crown# (gen %lu)",
                                   leader_name, (unsigned long)generation);
-        else           chron_push("#ff5555 no otaman - the mask lies unclaimed#");
+        else           chron_push("#ff5555 no capitan - the crown lies unclaimed#");
         s_prev_leader = leader_id;
     }
 
@@ -1100,13 +1089,13 @@ void ui_update(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
         lv_obj_remove_flag(r->card, LV_OBJ_FLAG_HIDDEN);
 
         bool lead = (m->id == leader_id);
-        lv_obj_set_style_bg_color(r->card, lv_color_hex(lead ? 0x161a0d : C_CARD), 0);
-        lv_obj_set_style_border_color(r->card, lv_color_hex(lead ? 0x3a4418 : C_BORDER), 0);
+        lv_obj_set_style_bg_color(r->card, lv_color_hex(lead ? 0x1c1a0c : C_CARD), 0);
+        lv_obj_set_style_border_color(r->card, lv_color_hex(lead ? 0x6a5420 : C_BORDER), 0);
         lv_obj_set_style_bg_color(r->dot, lv_color_hex(m->alive ? (m->updating ? C_WARN : C_ALIVE) : C_LOST), 0);
         lv_label_set_text(r->name, short_name(m));
-        lv_obj_set_style_text_color(r->name, lv_color_hex(lead ? C_LIME : (m->eligible ? C_TEXT : C_DIM)), 0);
-        lv_label_set_text(r->role, m->role);
-        lv_obj_set_style_text_color(r->role, lv_color_hex(lead ? C_LIME : C_DIM), 0);
+        lv_obj_set_style_text_color(r->name, lv_color_hex(lead ? C_ACCENT : (m->eligible ? C_TEXT : C_DIM)), 0);
+        lv_label_set_text(r->role, glass_role(m->role));
+        lv_obj_set_style_text_color(r->role, lv_color_hex(lead ? C_ACCENT : C_DIM), 0);
 
         if (m->updating) {
             /* the rssi bar moonlights as the release progress bar */
@@ -1135,9 +1124,9 @@ void ui_update(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
             lv_obj_set_style_text_color(r->served, lv_color_hex(C_MUTED), 0);
         }
 
-        /* STATUS, the website's words: the leader balances, kozaky serve, a
+        /* STATUS, the website's words: the leader balances, cimarrones serve, a
          * benched blade says so, observers watch. Booting outranks serving the
-         * same way the rail's amber does. */
+         * same way the rail's white blink does. */
         {
             const char *word; uint32_t col;
             bool benched = m->eligible && !lead && lb.valid
@@ -1145,7 +1134,7 @@ void ui_update(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
             if (!m->alive)            { word = "lost";      col = C_LOST; }
             else if (m->updating)     { word = "release";   col = C_WARN; }
             else if (!m->eligible)    { word = "watching";  col = C_MUTED; }
-            else if (lead)            { word = "balancing"; col = C_LIME; }
+            else if (lead)            { word = "balancing"; col = C_ACCENT; }
             else if (benched)         { word = "benched";   col = C_WARN; }
             else if (m->serving)      { word = "serving";   col = C_ALIVE; }
             else                      { word = "booting";   col = C_WARN; }
@@ -1224,7 +1213,7 @@ void ui_update(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
     lv_obj_set_style_text_color(s_arc_lbl,
         lv_color_hex(delivery >= 95 ? C_DIM : (delivery >= 80 ? C_WARN : C_LOST)), 0);
 
-    /* the otaman's die temperature, coloured by the recorder's own norms
+    /* the capitán's die temperature, coloured by the recorder's own norms
      * (vitals.h): green below TEMP_WARN_C, amber at it, red at TEMP_HOT_C */
     if (lead_temp == VITALS_TEMP_NONE) {
         lv_label_set_text(s_temp_lbl, "-");
@@ -1246,7 +1235,7 @@ void ui_update(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
             if (av >= 1000) lv_label_set_text(s_avail_lbl, "100%");
             else            lv_label_set_text_fmt(s_avail_lbl, "%d.%d%%", av / 10, av % 10);
             lv_obj_set_style_text_color(s_avail_lbl,
-                lv_color_hex(av >= 999 ? C_LIME : (av >= 950 ? C_WARN : C_LOST)), 0);
+                lv_color_hex(av >= 999 ? C_ACCENT : (av >= 950 ? C_WARN : C_LOST)), 0);
         } else {
             lv_label_set_text(s_avail_lbl, "-");
         }
@@ -1310,17 +1299,17 @@ void ui_update(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
             for (int k = 0; k < n; k++) {
                 if (s[k].id == tail[i].id) {
                     nm = short_name(&s[k]);
-                    col = (tail[i].id == leader_id) ? C_LIME
+                    col = (tail[i].id == leader_id) ? C_ACCENT
                         : s[k].eligible ? C_TEXT : C_DIM;
                     break;
                 }
             }
             rp += snprintf(rt + rp, sizeof(rt) - rp,
-                           "%s#4a4850 +%2lus#  #%06lx %-4.4s#  %4d dBm  seq %-7lu %s",
+                           "%s#4f544d +%2lus#  #%06lx %-4.4s#  %4d dBm  seq %-7lu %s",
                            shown ? "\n" : "", (unsigned long)age_s,
                            (unsigned long)col, nm, (int)tail[i].rssi,
                            (unsigned long)tail[i].seq,
-                           tail[i].serving ? "#43e86a serving#" : "#4a4850 -#");
+                           tail[i].serving ? "#43e86a serving#" : "#4f544d -#");
             if (tail[i].gap) {
                 rp += snprintf(rt + rp, sizeof(rt) - rp,
                                "  #ffb020 !%u missed#", tail[i].gap);
@@ -1332,66 +1321,6 @@ void ui_update(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
                               heard, missed);
         lv_obj_set_style_text_color(s_radio_sum,
             lv_color_hex(missed == 0 ? C_DIM : C_WARN), 0);
-    }
-
-    /* ---- the conversions table: slugs as rows, blades as columns ----
-     * unscii_16 glyphs are 16 px wide, so a 768 px label holds 48 characters
-     * a line - the first cut put blades on rows and slugs on columns and
-     * wrapped. Transposed: 12 (slug) + up to 6 numeric columns of 6 = 48. */
-    {
-        static const char *CN[SERVE_CLICK_KINDS] =
-            { "savelife", "prytula", "hospitallers", "u24", "trust", "nomenclature" };
-        swarm_snap_entry_t ce[8];
-        int cn = swarm_snapshot(ce, 8, NULL);
-        int bi[4], nb = 0;
-        uint32_t live[SERVE_CLICK_KINDS] = {0};
-        bool dirty = false;
-        for (int i = 0; i < cn && nb < 4; i++) {
-            if (!ce[i].eligible || ce[i].id >= 8) continue;
-            bi[nb++] = i;
-            for (int k = 0; k < SERVE_CLICK_KINDS; k++) {
-                uint16_t v = ce[i].clicks[k];
-                /* fold into the archive ONLY on a wipe (counter back to 0):
-                 * that blade's NVS is gone, its history now lives here alone.
-                 * A small regression is just a reboot losing the <1 min
-                 * commit-throttle tail - fold on that and every persisted
-                 * click would be counted twice. */
-                if (ce[i].alive) {
-                    if (v == 0 && s_conv_last[ce[i].id][k] > 0) {
-                        s_conv_base[k] += s_conv_last[ce[i].id][k];
-                        dirty = true;
-                    }
-                    s_conv_last[ce[i].id][k] = v;
-                }
-                live[k] += v;
-            }
-        }
-        char ct[1024];
-        int cp = snprintf(ct, sizeof(ct), "#4a4850 %-12s#", "");
-        for (int b = 0; b < nb; b++) {
-            cp += snprintf(ct + cp, sizeof(ct) - cp, "#4a4850  %5.5s#",
-                           ce[bi[b]].shortname ? ce[bi[b]].shortname : "?");
-        }
-        cp += snprintf(ct + cp, sizeof(ct) - cp, "#c4f04d  FLEET##43e86a   EVER#");
-        for (int k = 0; k < SERVE_CLICK_KINDS; k++) {
-            cp += snprintf(ct + cp, sizeof(ct) - cp, "\n#4a4850 %-12s#", CN[k]);
-            for (int b = 0; b < nb; b++) {
-                cp += snprintf(ct + cp, sizeof(ct) - cp, " %5u",
-                               (unsigned)ce[bi[b]].clicks[k]);
-            }
-            cp += snprintf(ct + cp, sizeof(ct) - cp, "#c4f04d  %5lu##43e86a  %5lu#",
-                           (unsigned long)live[k],
-                           (unsigned long)(s_conv_base[k] + live[k]));
-        }
-        lv_label_set_text(s_conv_lbl, ct);
-        if (dirty && s_conv_nvs) {
-            char key[4] = "c0";
-            for (int k = 0; k < SERVE_CLICK_KINDS; k++) {
-                key[1] = '0' + k;
-                nvs_set_u32(s_conv_nvs, key, s_conv_base[k]);
-            }
-            nvs_commit(s_conv_nvs);
-        }
     }
 
     lvgl_port_unlock();

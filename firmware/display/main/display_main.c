@@ -1,9 +1,9 @@
-/* bohun: the display node.
- * A DevKitC (no Ethernet, no serving, no mask) that joins the ESP-NOW control
+/* bioho: the display node.
+ * A DevKitC (no Ethernet, no serving, no crown) that joins the ESP-NOW control
  * plane as a WITNESS (fleet id 6, eligible=false) and paints the swarm roster
- * on a 2.8" TFT. Reuses swarm.c/mask.c/swarm_identity.c from the node firmware
- * unchanged - the display is ineligible so it never wears the mask, and the
- * mask code is simply never exercised here.
+ * on a 2.8" TFT. Reuses swarm.c/crown.c/swarm_identity.c from the node firmware
+ * unchanged - the display is ineligible so it never wears the crown, and the
+ * crown code is simply never exercised here.
  */
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -19,7 +19,7 @@
 #include "led.h"
 #include "ota_window.h"
 
-static const char *TAG = "bohun_display";
+static const char *TAG = "bioho_display";
 
 static void render_task(void *arg)
 {
@@ -47,7 +47,7 @@ static void render_task(void *arg)
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "bohun display node (ESP-NOW witness + TFT)");
+    ESP_LOGI(TAG, "bioho display node (ESP-NOW witness + TFT)");
 
     esp_err_t nvs = nvs_flash_init();
     if (nvs == ESP_ERR_NVS_NO_FREE_PAGES || nvs == ESP_ERR_NVS_NEW_VERSION_FOUND) {

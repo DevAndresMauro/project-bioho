@@ -20,7 +20,7 @@
 #include "esp_system.h"
 #include "esp_heap_caps.h"
 #include "swarm_identity.h"
-#include "mask.h"
+#include "crown.h"
 #include "serve.h"
 #include "secrets.h"
 #include "vitals.h"
@@ -33,14 +33,14 @@
 #define PEER_LOST_MS      3000
 #define ROSTER_PRINT_MS   5000
 
-static const char *TAG = "bohun_swarm";
+static const char *TAG = "bioho_swarm";
 static uint16_t s_fw_ver;   /* this image's version.txt, gossiped since v15 */
 
 /* Radio keys live in the gitignored secrets.h - an ASCII literal in tracked
  * source would be readable with `strings` on any binary. Same 16 bytes on
  * every node or nobody hears anybody. */
-static const uint8_t PMK[16] = BOHUN_PMK;
-static const uint8_t LMK[16] = BOHUN_LMK;
+static const uint8_t PMK[16] = BIOHO_PMK;
+static const uint8_t LMK[16] = BIOHO_LMK;
 
 typedef struct __attribute__((packed)) {
     char magic[4];          /* "ACLD" */
@@ -57,7 +57,7 @@ typedef struct __attribute__((packed)) {
     uint32_t req_err;       /* v6: requests refused/failed - with req_count gives availability */
     uint8_t link_up;        /* v7: Ethernet PHY is up */
     uint8_t serving;        /* v7: the TLS server is listening (not merely booted) */
-    uint16_t err_kind[SERVE_ERR_KINDS];  /* v7: which errors, for the kobzar's table */
+    uint16_t err_kind[SERVE_ERR_KINDS];  /* v7: which errors, for the cabildo's table */
     uint8_t reset_reason;   /* v8: esp_reset_reason() from THIS boot - why we last died */
     uint32_t free_heap;     /* v8: bytes free right now */
     uint32_t min_free_heap; /* v8: low-water mark since boot */
@@ -92,15 +92,13 @@ typedef struct __attribute__((packed)) {
     uint16_t pcb_listen;      /* v14: LISTENING PCBs - 0 means every port is dead */
     uint16_t fw_ver;          /* v15: this variant's version.txt integer. THE
                                * release identity on the glass; 0 = pre-v15 image */
-    uint16_t clicks[SERVE_CLICK_KINDS];   /* v16: the conversion ledger, in
-                               * serve.h's canonical slug order */
 } hb_frame_t;
 /* err_kind[] sits MID-FRAME, so growing SERVE_ERR_KINDS silently moves every
  * field after it while `ver` stays 9 - an un-reflashed observer would then read
  * reset_reason out of an error counter and heap/temperature out of noise. That
  * is the only realizable silent-corruption path left in the protocol, so make
  * it a compile error instead: bump `ver` and the RX gates when this fires. */
-_Static_assert(sizeof(hb_frame_t) == 132, "wire layout changed - bump ver and the RX gates");
+_Static_assert(sizeof(hb_frame_t) == 120, "wire layout changed - bump ver and the RX gates");
 
 typedef struct {
     uint8_t src_mac[6];
@@ -121,7 +119,6 @@ typedef struct {
     uint32_t last_ip;
     uint32_t last_generation;
     uint16_t last_fw_ver;
-    uint16_t last_clicks[SERVE_CLICK_KINDS];
     uint32_t last_req_count;
     uint32_t last_req_lat_us;
     uint32_t last_req_err;
@@ -167,7 +164,7 @@ static void rtail_push(uint8_t id, uint32_t seq, int8_t rssi, bool serving, uint
 {
     uint8_t gap = 0;
     if (id < 16) {
-        gap = bohun_seq_gap(s_rtail_prev_seq[id], seq);
+        gap = bioho_seq_gap(s_rtail_prev_seq[id], seq);
         s_rtail_prev_seq[id] = seq;
     }
     portENTER_CRITICAL(&s_rtail_mux);
@@ -194,14 +191,14 @@ int swarm_radio_tail(swarm_radio_evt_t *out, int max)
  * the last_seen store is atomic; the window arithmetic lives in logic.h */
 static inline bool peer_alive(const roster_entry_t *r, uint32_t now_ms)
 {
-    return bohun_peer_alive_ms(r->last_seen_ms, now_ms, PEER_LOST_MS);
+    return bioho_peer_alive_ms(r->last_seen_ms, now_ms, PEER_LOST_MS);
 }
 static size_t s_roster_n;
 static uint32_t s_self_seq;   /* our own last-sent heartbeat seq, for /roster completeness */
 static uint32_t s_generation; /* how many times leadership has changed since boot */
 static uint32_t s_req_count;  /* HTTP requests served (serve.c pushes via swarm_record_request) */
-static uint32_t s_req_at_claim; /* req_count when this node last claimed the mask - the "since election" baseline */
-static uint32_t s_times_elected; /* lifetime mask claims by THIS node - NVS-persisted so OTA reboots don't wipe it */
+static uint32_t s_req_at_claim; /* req_count when this node last claimed the crown - the "since election" baseline */
+static uint32_t s_times_elected; /* lifetime crown claims by THIS node - NVS-persisted so OTA reboots don't wipe it */
 static nvs_handle_t s_nvs;
 static bool s_elected_dirty;     /* counter moved since the last commit */
 static int64_t s_elected_saved_us;
@@ -218,14 +215,14 @@ static uint32_t s_req_err_srv; /* the 5xx subset - the only ones that are OUR fa
 __attribute__((weak)) bool serve_is_ready(void) { return true; }
 /* Does this BUILD have a web server at all? serve.c overrides with true.
  * Without this gate, observer firmware flashed onto a blade once advertised
- * serving=1 with no server aboard - eligible for a mask it could not honour. */
+ * serving=1 with no server aboard - eligible for a crown it could not honour. */
 __attribute__((weak)) bool serve_is_real(void) { return false; }
 /* observers have no blackbox partition and no recorder - events vanish there */
 __attribute__((weak)) void blackbox_event(uint8_t kind, uint16_t code, const char *fmt, ...) {
     (void)kind; (void)code; (void)fmt;
 }
-/* was: a hand-copied `enum { BBX_MASK_ON = 5, BBX_MASK_OFF = 6 }`. A
- * renumber in blackbox.h would have silently relabelled every mask event in the
+/* was: a hand-copied `enum { BBX_CROWN_ON = 5, BBX_CROWN_OFF = 6 }`. A
+ * renumber in blackbox.h would have silently relabelled every crown event in the
  * ring. blackbox.h is on all three variants' include path (the observers' own
  * CMakeLists add ../../eth/main), so just include it. */
 #include "blackbox.h"
@@ -257,11 +254,6 @@ static void count_pcbs_cb(void *arg)
     s_tcpip_beat++;   /* proof-of-life: only advances when the tcpip thread runs */
 }
 __attribute__((weak)) void serve_reset_errors(void) { }
-/* observers serve no page, so nobody can click one there */
-__attribute__((weak)) const uint32_t *serve_click_counts(void) {
-    static const uint32_t zeros[SERVE_CLICK_KINDS];
-    return zeros;
-}
 /* Weak stubs so a variant that omits vitals.c fails SOFT (sentinel in the
  * frame), never fails to link - observer builds once stopped compiling for a
  * day before anyone noticed the update path was broken. */
@@ -272,7 +264,7 @@ __attribute__((weak)) void vitals_sample(void) { }
 __attribute__((weak)) bool splice_stats_get(splice_stats_t *out) { (void)out; return false; }
 /* no splicer in this build - the D8 trial must not wait for one */
 __attribute__((weak)) bool splice_is_up(void) { return true; }
-/* observers have no splicer, so there is nothing to drain when the mask moves */
+/* observers have no splicer, so there is nothing to drain when the crown moves */
 __attribute__((weak)) void splice_drain(const char *why) { (void)why; }
 __attribute__((weak)) int16_t vitals_temp_c10(void) { return VITALS_TEMP_NONE; }
 __attribute__((weak)) const uint16_t *serve_err_counts(void)
@@ -350,10 +342,10 @@ void swarm_reset_stats(void)
     s_generation = 0;
     /* A reign in progress is not history to be erased. The counter only ever
      * increments on a leadership TRANSITION, so zeroing it while this node wears
-     * the mask leaves the current otaman claiming zero elections until it happens
+     * the crown leaves the current capitán claiming zero elections until it happens
      * to lose and retake the address - which could be days. If we hold it now, we
      * were elected at least once, and the count starts at one. */
-    s_times_elected = mask_is_wearing() ? 1 : 0;
+    s_times_elected = crown_is_wearing() ? 1 : 0;
     if (s_nvs) {
         nvs_set_u32(s_nvs, "elected", s_times_elected);
         nvs_commit(s_nvs);
@@ -390,7 +382,7 @@ uint16_t swarm_avail_x10(void)
      * the peer-derived figure below so they can never disagree.
      * Caveat: connections dropped before HTTP is parsed (socket pool full, TLS
      * handshake timed out) never reach a handler, so this remains an upper bound. */
-    return bohun_avail_x10(s_req_count, s_req_err, s_req_err_srv);
+    return bioho_avail_x10(s_req_count, s_req_err, s_req_err_srv);
 }
 
 void swarm_record_request(uint32_t lat_us)
@@ -416,7 +408,7 @@ static uint32_t peer_err_srv(const uint16_t *err_kind)
 static uint16_t peer_avail_x10(uint32_t req_count, uint32_t req_err,
                                const uint16_t *err_kind)
 {
-    return bohun_avail_x10(req_count, req_err, peer_err_srv(err_kind));
+    return bioho_avail_x10(req_count, req_err, peer_err_srv(err_kind));
 }
 
 /* nearest-rank percentile over the last <=128 requests, computed on demand -
@@ -426,7 +418,7 @@ static uint32_t lat_percentile_us(uint32_t pct)
     uint32_t cnt = s_lat_total < LAT_RING_N ? s_lat_total : LAT_RING_N;
     uint32_t w[LAT_RING_N];
     memcpy(w, s_lat_ring, cnt * sizeof(uint32_t));
-    return bohun_pctl(w, cnt, pct);
+    return bioho_pctl(w, cnt, pct);
 }
 
 /* callback context belongs to the radio - enqueue and leave */
@@ -462,7 +454,7 @@ static void swarm_recv_cb(const esp_now_recv_info_t *info, const uint8_t *data, 
 static void swarm_hb_tx_task(void *arg)
 {
     const swarm_member_t *self = swarm_self();
-    hb_frame_t frame = { .magic = {'A', 'C', 'L', 'D'}, .ver = 16, .node_id = self->id, .seq = 0 };
+    hb_frame_t frame = { .magic = {'A', 'C', 'L', 'D'}, .ver = 17, .node_id = self->id, .seq = 0 };
     uint32_t s_tcpip_beat_seen = 0, s_tcpip_stall = 0;
     frame.reset_reason = s_reset_reason;   /* fixed for this whole boot */
     frame.fw_ver = s_fw_ver;               /* likewise - the image cannot change under us */
@@ -470,35 +462,31 @@ static void swarm_hb_tx_task(void *arg)
         frame.seq++;
         s_self_seq = frame.seq;
         frame.uptime_s = (uint32_t)(esp_timer_get_time() / 1000000);
-        frame.ip = mask_get_ip();
+        frame.ip = crown_get_ip();
         frame.generation = s_generation;
         frame.req_count = s_req_count;
         frame.req_lat_us = s_req_lat_us;
         frame.updating = s_updating ? 1 : 0;
         frame.update_pct = s_update_pct;
         frame.req_err = s_req_err;
-        frame.link_up = mask_link_lost() ? 0 : 1;
+        frame.link_up = crown_link_lost() ? 0 : 1;
         /* peers elect on THIS bit, so a build with no server must never
          * set it - the self-gate alone would leave the fleet electing an
-         * impostor that then declines, and nobody wearing the mask. */
-        /* mask_has_ip(): a blade that has dropped the mask and not yet been
+         * impostor that then declines, and nobody wearing the crown. */
+        /* crown_has_ip(): a blade that has dropped the crown and not yet been
          * given a lease has no address, so nothing can reach it - advertising
          * serving=1 there puts an unreachable blade in the backend pool. */
-        frame.serving = (serve_is_ready() && serve_is_real() && mask_has_ip()) ? 1 : 0;
+        frame.serving = (serve_is_ready() && serve_is_real() && crown_has_ip()) ? 1 : 0;
         memcpy(frame.err_kind, serve_err_counts(), sizeof(frame.err_kind));
         frame.free_heap = (uint32_t)esp_get_free_heap_size();
         frame.min_free_heap = (uint32_t)esp_get_minimum_free_heap_size();
         frame.temp_c10 = vitals_temp_c10();
         frame.req_p50_us = lat_percentile_us(50);
         frame.req_p95_us = lat_percentile_us(95);
-        const uint32_t *ck = serve_click_counts();
-        for (int k = 0; k < SERVE_CLICK_KINDS; k++) {
-            frame.clicks[k] = ck[k] > 65535 ? 65535 : (uint16_t)ck[k];
-        }
         /* TCPIP-THREAD WATCHDOG: count_pcbs_cb runs on the tcpip thread; if
          * its beat freezes ~12 s (link up, past boot settle) the thread is
          * hung and no connection will ever be accepted - record and reboot. */
-        if (frame.uptime_s > 30 && !mask_link_lost()) {
+        if (frame.uptime_s > 30 && !crown_link_lost()) {
             if (s_tcpip_beat == s_tcpip_beat_seen) {
                 if (++s_tcpip_stall >= 12) {
                     blackbox_event(BBX_BOOT, (uint16_t)s_tcpip_stall,
@@ -565,7 +553,7 @@ static roster_entry_t *roster_get(const swarm_member_t *m)
     return NULL;
 }
 
-/* election: the rule itself is bohun_elect() in logic.h (lowest-id eligible
+/* election: the rule itself is bioho_elect() in logic.h (lowest-id eligible
  * member that can actually serve; deterministic, preemptive, no coordinator).
  * Deliberately no stickiness: every node recomputes from the roster each tick
  * and the same inputs always give the same leader. This function only gathers
@@ -573,7 +561,7 @@ static roster_entry_t *roster_get(const swarm_member_t *m)
 static uint8_t s_leader_id;
 
 /* Radio liveness alone qualifies nobody: a node whose Ethernet has died can
- * chat happily on ESP-NOW forever, keeping the mask while the site stays dark.
+ * chat happily on ESP-NOW forever, keeping the crown while the site stays dark.
  * A candidate must hold up its end of the DATA plane too - link up, and a TLS
  * server actually listening. */
 static uint8_t compute_leader(int64_t now)
@@ -582,31 +570,31 @@ static uint8_t compute_leader(int64_t now)
     const uint32_t now_ms = (uint32_t)(now / 1000);
     /* serve_is_real() must sit in this gate. Without it, firmware with no
      * server aboard answers the WEAK serve_is_ready() with true, sees no link
-     * loss (its link was never up), self-nominates, and takes a mask it cannot
+     * loss (its link was never up), self-nominates, and takes a crown it cannot
      * honour. */
     bool self_ok = self->eligible && serve_is_real()
-                   && !mask_link_lost() && serve_is_ready();
-    bohun_cand_t cand[sizeof(s_roster) / sizeof(s_roster[0])];
+                   && !crown_link_lost() && serve_is_ready();
+    bioho_cand_t cand[sizeof(s_roster) / sizeof(s_roster[0])];
     size_t n = 0;
     for (size_t i = 0; i < s_roster_n; i++) {
         roster_entry_t *r = &s_roster[i];   /* monitor task owns the roster - no lock needed here */
-        cand[n++] = (bohun_cand_t){
+        cand[n++] = (bioho_cand_t){
             .id = r->member->id,
             .eligible = r->member->eligible,
             .alive = peer_alive(r, now_ms),
             .able = r->last_link_up && r->last_serving,
         };
     }
-    return bohun_elect(self->id, self_ok, cand, n);
+    return bioho_elect(self->id, self_ok, cand, n);
 }
 
-/* the swarm's roles, in the Cossack lexicon */
+/* the swarm's roles, in the palenque lexicon */
 static const char *role_word(const swarm_member_t *m)
 {
     if (!m) return "unknown";
-    if (m->id == s_leader_id) return "otaman";     /* the elected chief, wears the Bulava */
-    if (m->eligible) return "kozak";               /* sworn brother of the host */
-    return m->witness_role ? m->witness_role : "pysar";   /* scribe / bard */
+    if (m->id == s_leader_id) return "capitán";     /* the elected leader, wears the crown */
+    if (m->eligible) return "cimarrón";               /* a serving blade */
+    return m->witness_role ? m->witness_role : "vigía";   /* vigía / cabildo */
 }
 
 static void swarm_monitor_task(void *arg)
@@ -685,11 +673,6 @@ static void swarm_monitor_task(void *arg)
                     r->last_pcb_listen = ev.frame.pcb_listen;
                 }
                 r->last_fw_ver = (ev.frame.ver >= 15) ? ev.frame.fw_ver : 0;
-                if (ev.frame.ver >= 16) {
-                    memcpy(r->last_clicks, ev.frame.clicks, sizeof(r->last_clicks));
-                } else {
-                    memset(r->last_clicks, 0, sizeof(r->last_clicks));
-                }
                 if (ev.frame.ver >= 13) {
                     r->last_pcb_active = ev.frame.pcb_active;
                     r->last_pcb_tw     = ev.frame.pcb_tw;
@@ -736,13 +719,13 @@ static void swarm_monitor_task(void *arg)
                 }
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(200));   /* election/mask run every tick, not gated on queue */
+        vTaskDelay(pdMS_TO_TICKS(200));   /* election/crown run every tick, not gated on queue */
         int64_t now = esp_timer_get_time();
 
         /* the wire died under us while wearing it: stop pretending, immediately */
-        if (mask_is_wearing() && mask_link_lost()) {
-            blackbox_event(BBX_MASK_OFF, 0, "link lost - abdicated");
-            mask_abdicate();
+        if (crown_is_wearing() && crown_link_lost()) {
+            blackbox_event(BBX_CROWN_OFF, 0, "link lost - abdicated");
+            crown_abdicate();
             s_leader_id = 0;   /* force a real election on the next tick */
         }
 
@@ -752,27 +735,27 @@ static void swarm_monitor_task(void *arg)
             s_generation++;
             const swarm_member_t *self = swarm_self();
             if (leader == 0) {
-                ESP_LOGW(TAG, "election: NO otaman (no eligible member alive)");
+                ESP_LOGW(TAG, "election: NO capitán (no eligible member alive)");
             } else if (leader == self->id) {
                 s_req_at_claim = s_req_count;   /* a fresh reign counts from zero */
                 s_times_elected++;
                 s_elected_dirty = true;   /* persisted lazily - see below */
-                blackbox_event(BBX_MASK_ON, (uint16_t)s_generation, "gen %" PRIu32, s_generation);
-                ESP_LOGW(TAG, "election: I AM THE OTAMAN (bohun-n%u, elected %" PRIu32 "x)",
+                blackbox_event(BBX_CROWN_ON, (uint16_t)s_generation, "gen %" PRIu32, s_generation);
+                ESP_LOGW(TAG, "election: I AM THE CAPITAN (bioho-n%u, elected %" PRIu32 "x)",
                          leader, s_times_elected);
             } else {
-                if (mask_is_wearing()) {
-                    blackbox_event(BBX_MASK_OFF, (uint16_t)s_generation, "lost to n%u", leader);
+                if (crown_is_wearing()) {
+                    blackbox_event(BBX_CROWN_OFF, (uint16_t)s_generation, "lost to n%u", leader);
                 }
-                ESP_LOGW(TAG, "election: otaman = bohun-n%u (I am a %s)", leader,
-                         self->eligible ? "kozak" : "pysar");
+                ESP_LOGW(TAG, "election: capitán = bioho-n%u (I am a %s)", leader,
+                         self->eligible ? "cimarrón" : "vigía");
             }
-            mask_set_leader(leader == self->id);
+            crown_set_leader(leader == self->id);
         }
-        mask_tick();
+        crown_tick();
 
         /* Persist the election count at most once a minute, not once per
-         * election: an abdication flap can claim the mask hundreds of times in
+         * election: an abdication flap can claim the crown hundreds of times in
          * minutes, and committing each one would chew through an NVS sector.
          * The counter lives in RAM; a reboot inside the window loses at most a
          * minute of it - a fair trade for the flash. */
@@ -787,7 +770,7 @@ static void swarm_monitor_task(void *arg)
         if (now - last_print >= (int64_t)ROSTER_PRINT_MS * 1000) {
             last_print = now;
             const swarm_member_t *self = swarm_self();
-            ESP_LOGI(TAG, "roster [leader=bohun-n%u, self=%s %s]:", s_leader_id,
+            ESP_LOGI(TAG, "roster [leader=bioho-n%u, self=%s %s]:", s_leader_id,
                      self ? self->name : "UNLEDGERED", self ? role_word(self) : "-");
             for (size_t i = 0; i < s_roster_n; i++) {
                 roster_entry_t *r = &s_roster[i];
@@ -827,7 +810,7 @@ void swarm_lb_view(swarm_lb_view_t *out)
 {
     memset(out, 0, sizeof(*out));
     splice_stats_t sp;
-    if (mask_is_wearing() && splice_stats_get(&sp)) {
+    if (crown_is_wearing() && splice_stats_get(&sp)) {
         out->valid = true;  out->live = true;
         out->backends = sp.backends;       out->known = sp.known;
         out->benched_mask = sp.benched_mask;
@@ -879,12 +862,12 @@ int swarm_roster_json_ex(char *buf, size_t len, bool with_ip)
 #define RAPP(...) do { if (n < len) { int _w = snprintf(buf + n, len - n, __VA_ARGS__); \
     if (_w > 0) n = (n + (size_t)_w > len) ? len : n + (size_t)_w; } } while (0)
     /* The lb block is top-level because the page is served by a BACKEND:
-     * the reader needs the OTAMAN's numbers - own splicer if we lead, else
+     * the reader needs the CAPITAN's numbers - own splicer if we lead, else
      * what the leader gossiped. The door they came through, not the room. */
     {
         splice_stats_t sp;
         bool have = false;
-        if (mask_is_wearing() && splice_stats_get(&sp)) {
+        if (crown_is_wearing() && splice_stats_get(&sp)) {
             have = true;
         } else {
             for (size_t i = 0; i < s_roster_n; i++) {
@@ -925,7 +908,7 @@ int swarm_roster_json_ex(char *buf, size_t len, bool with_ip)
          "\"roster_n\":%u,\"leader\":\"%s\",\"members\":[",
          self->name, self->id,
          role_word(self),
-         self->eligible ? 1 : 0, mask_is_wearing() ? 1 : 0, (unsigned)s_roster_n,
+         self->eligible ? 1 : 0, crown_is_wearing() ? 1 : 0, (unsigned)s_roster_n,
          leader_name);
     /* temp is PUBLIC: a die temperature identifies no address. Emitted once,
      * here - admin readers see it too, since their document is this body plus
@@ -944,15 +927,15 @@ int swarm_roster_json_ex(char *buf, size_t len, bool with_ip)
          s_self_seq, (uint32_t)(now / 1000000),
          s_generation, s_req_count, s_req_lat_us, s_req_count - s_req_at_claim,
          s_times_elected, s_req_err, s_req_err_srv, (unsigned)swarm_avail_x10(), s_rx_dropped,
-         mask_link_up() ? 1 : 0, serve_is_ready() ? 1 : 0, tj_self,
+         crown_link_up() ? 1 : 0, serve_is_ready() ? 1 : 0, tj_self,
          lat_percentile_us(50), lat_percentile_us(95));
     /* Boot cause and heap are ADMIN-PLANE ONLY, alongside the addresses. Two
      * reasons, and the second is the one that matters: the public buffer is 2 KB
      * for six members and RAPP truncates silently, so widening every entry there
-     * would quietly emit invalid JSON to the page's own fetch. The kobzar does not
+     * would quietly emit invalid JSON to the page's own fetch. The cabildo does not
      * need them over HTTP anyway - it gets them in the heartbeat. */
     if (with_ip) {
-        esp_ip4_addr_t me = { .addr = mask_get_ip() };
+        esp_ip4_addr_t me = { .addr = crown_get_ip() };
         n -= 1;   /* step back over the closing brace and add the private fields */
         /* on_trial: D8 says this image is still unproven and the next reboot
          * would roll it back. deploy.sh polls this instead of sleeping blind. */
@@ -989,7 +972,7 @@ int swarm_roster_json_ex(char *buf, size_t len, bool with_ip)
         portEXIT_CRITICAL(&s_roster_mux);
         roster_entry_t *r = &snap;
         bool alive = peer_alive(r, now_ms);
-        uint32_t deliv = bohun_delivery_pct(r->first_seq, r->last_seq, r->rx_win);
+        uint32_t deliv = bioho_delivery_pct(r->first_seq, r->last_seq, r->rx_win);
         unsigned ravail = peer_avail_x10(r->last_req_count, r->last_req_err,
                                          r->last_err_kind);
         char tj[12];
@@ -1019,11 +1002,11 @@ int swarm_roster_json_ex(char *buf, size_t len, bool with_ip)
     }
     RAPP("]}\n");
 #undef RAPP
-    /* RAPP clamps silently; bohun_json_close_clamped (logic.h) walks back to
+    /* RAPP clamps silently; bioho_json_close_clamped (logic.h) walks back to
      * the last complete member object and closes the document so a truncated
      * roster still parses. */
     if (n >= len) {
-        size_t fixed = bohun_json_close_clamped(buf, len);
+        size_t fixed = bioho_json_close_clamped(buf, len);
         if (fixed) {
             n = fixed;
             ESP_LOGW(TAG, "roster JSON clamped at %u bytes - members omitted",
@@ -1043,10 +1026,10 @@ int swarm_snapshot(swarm_snap_entry_t *e, int max, uint8_t *leader_out)
     }
     if (self && n < max) {
         e[n] = (swarm_snap_entry_t){ .id = self->id, .name = self->name, .shortname = self->shortname, .alive = true, .self = true,
-            .leader = (s_leader_id == self->id), .eligible = self->eligible, .ip = mask_get_ip(),
+            .leader = (s_leader_id == self->id), .eligible = self->eligible, .ip = crown_get_ip(),
             .uptime_s = (uint32_t)(now / 1000000), .rssi = 0, .generation = s_generation, .fw_ver = s_fw_ver,
             .req_count = s_req_count, .req_lat_us = s_req_lat_us, .req_err = s_req_err, .avail_x10 = swarm_avail_x10(),
-            .link_up = !mask_link_lost(), .serving = serve_is_ready(),
+            .link_up = !crown_link_lost(), .serving = serve_is_ready(),
             .role = role_word(self), .updating = s_updating, .update_pct = s_update_pct, .loss_pct = 0,
             .reset_reason = s_reset_reason,
             .temp_c10 = vitals_temp_c10(),
@@ -1054,10 +1037,6 @@ int swarm_snapshot(swarm_snap_entry_t *e, int max, uint8_t *leader_out)
             .free_heap = (uint32_t)esp_get_free_heap_size(),
             .min_free_heap = (uint32_t)esp_get_minimum_free_heap_size() };
         memcpy(e[n].err_kind, serve_err_counts(), sizeof(e[n].err_kind));
-        const uint32_t *ck = serve_click_counts();
-        for (int k = 0; k < SERVE_CLICK_KINDS; k++) {
-            e[n].clicks[k] = ck[k] > 65535 ? 65535 : (uint16_t)ck[k];
-        }
         n++;
     }
     for (size_t i = 0; i < s_roster_n && n < max; i++) {
@@ -1078,14 +1057,13 @@ int swarm_snapshot(swarm_snap_entry_t *e, int max, uint8_t *leader_out)
             .avail_x10 = peer_avail_x10(r->last_req_count, r->last_req_err, r->last_err_kind),
             .link_up = r->last_link_up, .serving = r->last_serving,
             .role = role_word(r->member), .updating = r->last_updating, .update_pct = r->last_update_pct,
-            .loss_pct = (uint8_t)(100 - bohun_delivery_pct(r->first_seq, r->last_seq, r->rx_win)),
+            .loss_pct = (uint8_t)(100 - bioho_delivery_pct(r->first_seq, r->last_seq, r->rx_win)),
             .reset_reason = r->last_reset_reason,
             .temp_c10 = r->last_temp_c10,
             .p50_us = r->last_p50_us, .p95_us = r->last_p95_us,
             .free_heap = r->last_free_heap,
             .min_free_heap = r->last_min_free_heap };
         memcpy(e[n].err_kind, r->last_err_kind, sizeof(e[n].err_kind));
-        memcpy(e[n].clicks, r->last_clicks, sizeof(e[n].clicks));
         n++;
     }
     return n;

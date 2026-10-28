@@ -1,7 +1,7 @@
-/* bohun: the swarm on glass.
+/* bioho: the swarm on glass.
  * ST7789 240x320 over SPI, LVGL via esp_lvgl_port. THREE recolor labels stacked
  * by Y so the header and footer read BIG and only the dense data is small:
- *   s_head - unscii_16 (16px): IVAN BOHUN / Pysar / vN-date  (big)
+ *   s_head - unscii_16 (16px): BIOHO / Vigia / vN-date  (big)
  *   s_loss - unscii_8: Loss ESP-NOW %, its own small line under the head
  *   s_rows - unscii_8  (8px) : the per-node table, columns lined up (small)
  *   s_foot - unscii_16 (16px): quorum / req / avg rssi / served%        (big)
@@ -23,13 +23,13 @@
 #include "esp_lvgl_port.h"
 #include "esp_timer.h"
 #include "esp_log.h"
-#include "mask.h"   /* MASK_STATIC_IP - the address this glass prints */
+#include "crown.h"   /* CROWN_STATIC_IP - the address this glass prints */
 #include "tft.h"
 #include "led.h"
 #include "ota_window.h"
 #include "esp_app_desc.h"
 
-static const char *TAG = "bohun_tft";
+static const char *TAG = "bioho_tft";
 
 #define PIN_SCLK 12
 #define PIN_MOSI 11
@@ -47,7 +47,7 @@ static const char *TAG = "bohun_tft";
 #define LCD_HOST  SPI2_HOST
 
 /* brighter palette (the panel washes muted colours out) */
-#define COL_LIME  "d8ff33"
+#define COL_ACCENT "e6c229"
 #define COL_ALIVE "43e86a"
 #define COL_LOST  "ff5555"
 #define COL_DIM   "c2c0cc"
@@ -97,7 +97,7 @@ static void tp_blank_task(void *arg)
                 if (now - last_seen > 250000) break;   /* finger gone */
             }
             if (ota_hold) {
-                /* 4 s of finger = open the OTA window. Amber the rail from
+                /* 4 s of finger = open the OTA window. Cyan the rail from
                  * right here - the render tick is up to 1 s late and the
                  * operator needs the "let go now" cue at the threshold. */
                 s_blanked = false;
@@ -192,7 +192,7 @@ void tft_init(void)
     lv_obj_set_style_text_line_space(s_head, 2, 0);
     lv_obj_set_pos(s_head, 4, 4);
     lv_obj_set_width(s_head, LCD_H_RES - 6);
-    lv_label_set_text(s_head, "#" COL_LIME " IVAN BOHUN#\nwaiting...");
+    lv_label_set_text(s_head, "#" COL_ACCENT " BIOHO#\nwaiting...");
 
     {
         /* app-desc date is "Mmm dd yyyy"; the glass wants numbers */
@@ -355,7 +355,7 @@ void tft_render(const swarm_snap_entry_t *src, int n, uint8_t leader_id)
     int booting = 0;       /* nodes up on the radio but not yet serving anything */
     int alive = 0, updating = 0, loss_sum = 0, loss_n = 0, rssi_sum = 0, rssi_n = 0, upd_pct = 0;
     /* FLEET sums - the leader balances and serves nothing, so its own counters
-     * stopped being the story. Same arithmetic as the kobzar and the website. */
+     * stopped being the story. Same arithmetic as the cabildo and the website. */
     uint32_t fleet_req = 0, p50_sum = 0;
     uint64_t fleet_asked = 0, fleet_bad = 0;
     int lat_n = 0;
@@ -421,9 +421,9 @@ void tft_render(const swarm_snap_entry_t *src, int n, uint8_t leader_id)
     /* ---- head (big): identity + address + swarm loss ---- */
     char h[320];
     int hp = 0;
-    hp += snprintf(h + hp, sizeof(h) - hp, "#%s IVAN BOHUN#\n", COL_LIME);
-    hp += snprintf(h + hp, sizeof(h) - hp, "#%s Pysar#\n", COL_DIM);
-    hp += snprintf(h + hp, sizeof(h) - hp, "#%s %s#", COL_LIME, s_ver_line);
+    hp += snprintf(h + hp, sizeof(h) - hp, "#%s BIOHO#\n", COL_ACCENT);
+    hp += snprintf(h + hp, sizeof(h) - hp, "#%s Vigia#\n", COL_DIM);
+    hp += snprintf(h + hp, sizeof(h) - hp, "#%s %s#", COL_ACCENT, s_ver_line);
     char lossln[48];
     snprintf(lossln, sizeof(lossln), "Loss ESP-NOW: #%s %d%%#", lcol, swarm_loss);
     if (ow == OTAW_IDLE) {
@@ -437,8 +437,8 @@ void tft_render(const swarm_snap_entry_t *src, int n, uint8_t leader_id)
      * columns: dot | name(12) | rssi(4) | SERVED(5) | uptime(3)
      * The delivery%% column became SERVED in the balancer era: radio delivery
      * was pinned at 100 and said nothing, while per-blade 2xx counts are the
-     * work itself. Name colour carries role (lime otaman / white kozak / grey
-     * witness); an amber name is a benched kozak - the balancer is skipping it. */
+     * work itself. Name colour carries role (lime capitán / white cimarrón / grey
+     * witness); an amber name is a benched cimarrón - the balancer is skipping it. */
     /* HARD LINE BUDGET: y=78 to the footer at y=178 is exactly nine 11 px
      * lines. The RELEASE banner line exists only while a release is landing
      * (the vMAC that once sat here retired to make room for the version in
@@ -464,7 +464,7 @@ void tft_render(const swarm_snap_entry_t *src, int n, uint8_t leader_id)
         const char *nm   = m->shortname ? m->shortname : m->name;
         bool benched = m->eligible && m->id != leader_id && lb.valid
                        && ((lb.benched_mask >> (m->id & 7)) & 1);
-        const char *ncol = (m->id == leader_id) ? COL_LIME
+        const char *ncol = (m->id == leader_id) ? COL_ACCENT
                          : benched ? COL_WARN
                          : (m->eligible ? "ffffff" : COL_DIM);
         /* served count, compact to <=5 chars so the column holds. The k form
