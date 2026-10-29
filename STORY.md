@@ -209,6 +209,6 @@ Still, it types much faster than I do, so we made it work. The division of labou
 
 The whole build is open source in this repository. It contains the firmware for all three images, the OpenSCADs, various tooling, and a comprehensive build guide that starts at the first solder joint and ends with a fleet holding an election.
 
-The living proof is the website itself: https://yourwebsite.com
+The living proof is the website itself: https://projectbioho.com
 
 The roster at the top of the page is an actual live status of the setup sitting on my desk.

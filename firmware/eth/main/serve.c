@@ -491,8 +491,8 @@ static const httpd_uri_t standby_uri = { .uri = "/standby", .method = HTTP_POST,
  * an open redirect, and a hardcoded LAN fallback would leak the private address to
  * any Host-less HTTP/1.0 probe - so the destination is ours or the request is refused. */
 static const char *const REDIRECT_HOSTS[] = {
-    "yourwebsite.com",
-    "www.yourwebsite.com",
+    "projectbioho.com",
+    "www.projectbioho.com",
 };
 
 static esp_err_t redirect_handler(httpd_req_t *req)
