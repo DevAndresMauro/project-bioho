@@ -61,6 +61,12 @@ version and the RX gates together.
 | Release | OTA-in-progress flag + percent, firmware version (the variant's `version.txt`; 0 renders as "-") |
 | Balancer | the splicer's ledger: backends known and routable, accepted / done / refused / killed / idle-reaped, p50 connect / first-byte / total, p95, benched bitmask |
 
+Every tenth heartbeat, a blade whose clock is set also sends a separate
+16-byte time beacon (`ACLT`, not `ACLD`). The observers have no path to NTP,
+so this is how the cabildo learns which UTC bucket a temperature belongs to.
+An image that predates the beacon fails the heartbeat's magic check and
+never reads it.
+
 The `serving` bit is deliberately strict:
 `serve_is_ready() && serve_is_real() && crown_has_ip()`. Peers elect on this
 bit, so a build with no server must never set it, and a blade between the

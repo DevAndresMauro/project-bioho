@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <strings.h>   /* strcasecmp for the redirect host allowlist */
 #include "esp_https_server.h"
 #include <netinet/tcp.h>
@@ -24,6 +25,8 @@
 #include "serve.h"
 #include "ota.h"
 #include "splice.h"  /* pairs in flight: the probe must not spend the pool's last blocks */
+#include "swarm_identity.h"   /* the ledger's names, for /temps */
+#include "thermal.h"          /* this blade's day of die temperatures */
 
 /* err_kind[] rides mid-heartbeat sized by SERVE_ERR_KINDS; if the IDF ever
  * grows httpd_err_code_t, tally() below would silently drop the new codes.
@@ -127,14 +130,17 @@ static int64_t s_standby_until_us;
 static volatile uint8_t  s_probe_fails;
 static volatile uint32_t s_stood_down_ms;   /* ms stamp of the last sick-level failure, 0 = never */
 static volatile int64_t s_probe_ran_us;
+static int s_probe_err_prev;                /* errno of the streak's first failure, for the record */
 
 /* A connect needs a PCB from the pool the splicer fills on purpose, so a
  * full node cannot tell "busy" from "dead" by success alone: the errno
- * decides (bioho_probe_verdict). */
-static bioho_probe_t probe_once(uint16_t port)
+ * decides (bioho_probe_verdict). Returns 0 for connected, else that errno -
+ * the caller judges AND records it, because the 2026-10-23 stand-downs left
+ * no trace of which failure the probe had met. */
+static int probe_once(uint16_t port)
 {
     int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (fd < 0) return bioho_probe_verdict(false, errno);
+    if (fd < 0) return errno;
     int fl = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, fl | O_NONBLOCK);
     struct sockaddr_in a = {
@@ -156,21 +162,33 @@ static bioho_probe_t probe_once(uint16_t port)
         err = errno;
     }
     close(fd);
-    return bioho_probe_verdict(err == 0, err);
+    return err;
 }
 
 static void probe_task(void *arg)
 {
     (void)arg;
+    uint32_t admitted_seen = 0;          /* the splicer's accept count at the previous probe */
     vTaskDelay(pdMS_TO_TICKS(20000));    /* let the servers finish coming up */
     for (;;) {
         bioho_probe_t v;
-        splice_stats_t st;
+        int err = 0;                     /* 0 = connected or skipped; else what the connect met */
+        splice_stats_t st = {0};
         if (splice_stats_get(&st) && !bioho_probe_room(st.busy, CONFIG_LWIP_MAX_ACTIVE_TCP)) {
             v = BIOHO_PROBE_BUSY;   /* the splicer holds the pool - do not spend two blocks to learn that */
         } else {
-            v = probe_once(CONFIG_BIOHO_PUBLIC_PORT);
+            err = probe_once(CONFIG_BIOHO_PUBLIC_PORT);
+            v = bioho_probe_verdict(err == 0, err);
         }
+        /* Visitors admitted since the previous probe, read AFTER the connect so
+         * the window covers it. A listener that admitted anyone is alive by
+         * direct evidence, whatever our own connect met (bioho_probe_judge). */
+        uint32_t admitted = 0;
+        if (splice_stats_get(&st)) {
+            admitted = st.accepted - admitted_seen;
+            admitted_seen = st.accepted;
+        }
+        v = bioho_probe_judge(v, admitted);
         s_probe_ran_us = esp_timer_get_time();
         uint8_t before = s_probe_fails;
         s_probe_fails = bioho_probe_streak(before, v);
@@ -178,18 +196,32 @@ static void probe_task(void *arg)
             if (before) {
                 ESP_LOGW(TAG, "self-probe recovered after %d failures", before);
             }
+            s_probe_err_prev = 0;
         } else if (v == BIOHO_PROBE_BUSY) {
-            /* the pool is full: that is load, not death - the streak stands still */
-            ESP_LOGW(TAG, "self-probe could not run: no socket/PCB free (streak stays %d)", before);
+            /* load, not death - the streak stands still, whichever way we learnt it */
+            if (err == 0) {
+                ESP_LOGW(TAG, "self-probe skipped: %u relay pairs hold the pool (streak stays %d)",
+                         st.busy, before);
+            } else if (admitted) {
+                ESP_LOGW(TAG, "self-probe failed (errno %d) while the splicer admitted %lu visitor(s): "
+                              "congestion, not death (streak stays %d)",
+                         err, (unsigned long)admitted, before);
+            } else {
+                ESP_LOGW(TAG, "self-probe could not run: no socket/PCB free, errno %d (streak stays %d)",
+                         err, before);
+            }
         } else {
-            ESP_LOGE(TAG, "SELF-PROBE FAILED (%d): nothing can open :%d on this node",
-                     s_probe_fails, CONFIG_BIOHO_PUBLIC_PORT);
+            ESP_LOGE(TAG, "SELF-PROBE FAILED (%d): nothing can open :%d on this node "
+                          "(errno %d, %u pairs busy, %lu admitted since the last probe)",
+                     s_probe_fails, CONFIG_BIOHO_PUBLIC_PORT, err, st.busy, (unsigned long)admitted);
             if (s_probe_fails >= PROBE_FAIL_SICK) {
                 s_stood_down_ms = (uint32_t)(s_probe_ran_us / 1000);
             }
             if (s_probe_fails == PROBE_FAIL_SICK) {
-                blackbox_event(BBX_ERR5XX, 0, "self-probe: own port dead, standing down");
+                blackbox_event(BBX_ERR5XX, (uint16_t)err, "probe dead e=%d/%d busy=%u acc+%lu",
+                               s_probe_err_prev, err, (unsigned)st.busy, (unsigned long)admitted);
             }
+            s_probe_err_prev = err;
             if (s_probe_fails >= PROBE_FAIL_ABORT) {
                 blackbox_event(BBX_BOOT, (uint16_t)s_probe_fails,
                                "own port dead %d probes - abort for coredump", s_probe_fails);
@@ -362,6 +394,70 @@ static esp_err_t roster_get_handler(httpd_req_t *req)
     swarm_record_request((uint32_t)(esp_timer_get_time() - t0));
     return r;
 }
+
+/* the ledger's name for a fleet id, as /roster reports it */
+static const char *member_name(uint8_t id)
+{
+    for (size_t i = 0; i < swarm_fleet_size(); i++) {
+        const swarm_member_t *m = swarm_member(i);
+        if (m->id == id) return m->name;
+    }
+    return "?";
+}
+
+/* GET /temps - the fleet's day of die temperatures, as THIS blade remembers
+ * it (thermal.c): six nodes x 288 five-minute buckets x max/min/avg, tenths
+ * of a degree, null where this blade heard nothing. About 25 KB, streamed one
+ * series at a time through a 1.6 KB buffer so no request ever owns 25 KB of
+ * RAM. Same gates as /roster: no body, same origin. No addresses, ever. */
+static esp_err_t temps_get_handler(httpd_req_t *req)
+{
+    if (req->content_len) {
+        tally(HTTPD_400_BAD_REQUEST);
+        httpd_resp_set_status(req, "400 Bad Request");
+        httpd_resp_sendstr(req, "");
+        return ESP_FAIL;
+    }
+    if (!origin_is_self(req)) {
+        tally(HTTPD_403_FORBIDDEN);
+        httpd_resp_set_status(req, "403 Forbidden");
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"err\":\"cross-origin refused\"}");
+        return ESP_FAIL;
+    }
+    if (!thermal_ready()) {
+        httpd_resp_set_status(req, "503 Service Unavailable");
+        httpd_resp_sendstr(req, "");
+        return ESP_FAIL;
+    }
+    int64_t t0 = esp_timer_get_time();
+    uint32_t now_s = (uint32_t)time(NULL);
+    static char buf[1600];   /* one series at a time; this server is one task */
+    static const char *const STAT[3] = { "max", "min", "avg" };   /* bioho_temp_stat_t order */
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "X-Content-Type-Options", "nosniff");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    int n = snprintf(buf, sizeof(buf), "{\"now\":%lu,\"bucket_s\":%u,\"n\":%u,\"clock\":%s,\"nodes\":[",
+                     (unsigned long)now_s, (unsigned)BIOHO_TEMP_BUCKET_S, (unsigned)BIOHO_TEMP_BUCKETS,
+                     bioho_time_sane(now_s) ? "true" : "false");
+    if (httpd_resp_send_chunk(req, buf, n) != ESP_OK) return ESP_FAIL;
+    for (unsigned s = 0; s < BIOHO_TEMP_NODES; s++) {
+        n = snprintf(buf, sizeof(buf), "%s{\"name\":\"%s\"", s ? "," : "", member_name(bioho_temp_slot_id(s)));
+        if (httpd_resp_send_chunk(req, buf, n) != ESP_OK) return ESP_FAIL;
+        for (int st = 0; st < 3; st++) {
+            n = snprintf(buf, sizeof(buf), ",\"%s\":", STAT[st]);
+            if (httpd_resp_send_chunk(req, buf, n) != ESP_OK) return ESP_FAIL;
+            size_t len = thermal_series_json(s, (bioho_temp_stat_t)st, now_s, buf, sizeof(buf));
+            if (!len || httpd_resp_send_chunk(req, buf, len) != ESP_OK) return ESP_FAIL;
+        }
+        if (httpd_resp_send_chunk(req, "}", 1) != ESP_OK) return ESP_FAIL;
+    }
+    if (httpd_resp_send_chunk(req, "]}\n", 3) != ESP_OK) return ESP_FAIL;
+    esp_err_t r = httpd_resp_send_chunk(req, NULL, 0);
+    swarm_record_request((uint32_t)(esp_timer_get_time() - t0));
+    return r;
+}
+static const httpd_uri_t temps_uri = { .uri = "/temps", .method = HTTP_GET, .handler = temps_get_handler };
 
 static const httpd_uri_t root = { .uri = "/", .method = HTTP_GET, .handler = root_get_handler };
 static const httpd_uri_t ota = { .uri = "/ota", .method = HTTP_POST, .handler = ota_post_handler };
@@ -672,6 +768,9 @@ void serve_start(void)
      * test after changing either number. */
     pub.httpd.recv_wait_timeout  = 5;   /* internal port now - see the timeout note above */
     pub.httpd.max_open_sockets   = 8;
+    /* eight handlers would sit exactly at httpd's default; registration past
+     * the cap fails silently, so say the number */
+    pub.httpd.max_uri_handlers   = 10;
     /* TLS SESSION TICKETS. HTTPD_SSL_CONFIG_DEFAULT ships this false, and
      * without it EVERY visitor - returning ones included - pays the full
      * ~500 ms P-256 handshake (measured: session_reused=false, always). */
@@ -685,6 +784,7 @@ void serve_start(void)
         httpd_register_uri_handler(server, &og_uri);
         httpd_register_uri_handler(server, &llms_uri);
         httpd_register_uri_handler(server, &robots_uri);
+        httpd_register_uri_handler(server, &temps_uri);   /* the fleet's day of die temperatures */
         register_err_counters(server);
         s_ready = true;   /* only now is claiming the crown honest */
         ESP_LOGI(TAG, "public: / /roster over TLS on port %d (no /ota here)", pub.port_secure);

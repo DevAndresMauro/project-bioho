@@ -183,7 +183,7 @@ or the tests themselves.
 
 The serving path is proven on-device instead: the boot trial
 ([`ota_deployments.md`](ota_deployments.md)) gates every release on
-90 s of real serving, and `tools/fleet_check.sh` proves the fleet end to
+60 s of real serving, and `tools/fleet_check.sh` proves the fleet end to
 end - page 200, doors closed where they must be, identical content hashes.
 
 ## Releases

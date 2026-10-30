@@ -28,6 +28,7 @@ dependencies.lock
 .idea/
 .vscode/
 .DS_Store
+cursorrules
 
 # ── generated page embeds ────────────────────────────────────────────────────
 # Only the two personal.html encodings stay out: README step 4 regenerates

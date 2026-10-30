@@ -3,12 +3,12 @@
 The cabildo: a Waveshare ESP32-S3-Touch-LCD-4.3B - an integrated board with its
 own S3, an 800x480 touch panel and no wires to the fleet. It joins the
 ESP-NOW control plane as the second **witness** (`eligible=false`) and turns
-the gossip into a four-tile touch dashboard. Like the vigía, it compiles the
+the gossip into a five-tile touch dashboard. Like the vigía, it compiles the
 swarm control plane straight out of `eth/main/` and can never win the
 election ([`firmware.md`](firmware.md), shared source layout). It sits in the
 shell's front wall ([`../hardware/blade_cases.md`](../hardware/blade_cases.md)).
 
-![The cabildo firmware, gossip in, four tiles out](diagrams/mission-firmware-map.svg)
+![The cabildo firmware, gossip in, five tiles out](diagrams/mission-firmware-map.svg)
 
 ## Hardware facts (vendor-sourced)
 
@@ -40,7 +40,7 @@ so bring-up order is expander first, then panel.
   full_refresh`. Uses the current `i2c_master` API throughout (the legacy
   I2C driver is deprecated; vendor demo code still uses it and is not
   copied) and `in_color_format = LCD_COLOR_FMT_RGB565`.
-- **`ui.c`** - the four tiles (next section).
+- **`ui.c`** - the five tiles (next section).
 - **`mission_main.c`** - NVS, blackbox, vitals, netif, event loop, panel,
   UI, `swarm_start()`, the OTA boot trial, then a 1 Hz render task that
   feeds `ui_update()` from `swarm_snapshot()`.
@@ -65,7 +65,7 @@ First-light triage, should the panel misbehave: colours inverted or shifted
 mean the data-pin order; dead touch means the GT911 is at its backup address
 0x14 (the component probes 0x5D first); tearing means a taller bounce buffer.
 
-## Four tiles (swipe order)
+## Five tiles (swipe order)
 
 1. **Mission control.** Header: BIOHO, the crown's address, the current
    capitán, and an amber release chip whenever an OTA is flowing anywhere in
@@ -91,7 +91,11 @@ mean the data-pin order; dead touch means the GT911 is at its backup address
 3. **THE RADIO.** The gossip tail: every heartbeat heard in the last ~45 s,
    newest first, with sender, RSSI and sequence-gap markers - the radio's
    own health, visible.
-4. **The served page.** The site itself, baked to RGB565 and memory-mapped
+4. **TEMPERATURE.** Six lines, one per die, over the last 24 hours in
+   5-minute UTC buckets. The clock is the blades' time beacon. Until the
+   first beacon lands the tile says so, and a bucket nobody was heard in
+   sits on the floor of the axis.
+5. **The served page.** The site itself, baked to RGB565 and memory-mapped
    from the page partition, vertically scrollable. The tall image lives in
    its own inner viewport: the viewport owns vertical scrolling while the
    tileview keeps horizontal swipes, and scroll chaining is off so a drag on
@@ -135,5 +139,5 @@ into the small bitmap that rides in rodata.)
 - **A footer tap blanks the glass** - the backlight is cut through CH422G
   IO2 (on/off only; the expander cannot PWM), resets stay high and touch
   stays live, so any touch wakes it.
-- Node cards and the chronicle card open their overlays (four tiles); tapping an
+- Node cards and the chronicle card open their overlays (five tiles); tapping an
   overlay closes it.

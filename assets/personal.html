@@ -39,6 +39,13 @@
     --alive:#43e86a;
     --warn:#ffb020;
     --lost:#ff5555;
+    /* the six lines of the temperature chart, in slot order: blades, vigía, cabildo */
+    --t1:#e6c229;
+    --t2:#43e86a;
+    --t3:#ffb020;
+    --t4:#e8e6e3;
+    --t5:#3b6cff;
+    --t6:#a06bff;
     --border:#1a211a;
     --border-light:#242e24;
     /* self-hosted law: no external font requests, ever. system stacks only. */
@@ -178,6 +185,18 @@
   .fleet-stat-label{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;white-space:nowrap}
   .fleet-stat-value{font-family:var(--serif);font-size:26px;font-style:italic;color:var(--text)}
   .fleet-note{padding:16px 26px;font-family:var(--mono);font-size:11px;color:var(--text-muted);line-height:1.7;border-top:1px solid var(--border)}
+  .heat-modes{display:flex;gap:8px}
+  .heat-mode{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);background:transparent;border:1px solid var(--border-light);border-radius:2px;padding:7px 14px;cursor:pointer;transition:color .2s,border-color .2s,background .2s}
+  .heat-mode:hover{color:var(--text);border-color:var(--text-muted)}
+  .heat-mode.is-on{color:var(--bg);background:var(--accent);border-color:var(--accent)}
+  .heat-plot{position:relative;padding:18px 26px 4px}
+  .heat-plot svg{width:100%;height:auto;display:block;cursor:crosshair}
+  .heat-tip{position:absolute;pointer-events:none;background:var(--bg-card-hover);border:1px solid var(--border-light);border-radius:3px;padding:8px 10px;font-family:var(--mono);font-size:11px;color:var(--text-dim);line-height:1.65;white-space:nowrap;z-index:3}
+  .heat-tip b{color:var(--text);font-weight:500}
+  .heat-tip i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:7px;vertical-align:-1px}
+  .heat-legend{display:flex;flex-wrap:wrap;gap:8px 22px;padding:10px 26px 18px;font-family:var(--mono);font-size:11px;color:var(--text-dim)}
+  .heat-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:8px;vertical-align:-1px}
+  @media(max-width:768px){.heat-plot{padding:14px 12px 2px}.heat-legend{padding:8px 12px 14px;gap:6px 16px}.heat-mode{padding:6px 10px}}
 
   /* DIAGRAMS */
   .diagram{background:var(--bg-card);border:1px solid var(--border);padding:32px 26px;margin-bottom:2px}
@@ -492,6 +511,29 @@
         long until that cimarrón sends its first TLS byte back. The <b>response times</b> come from
         the blades instead - each cimarrón times every request it answers and reports its own
         p50 and p95, and these are the average across the serving ones.
+      </p>
+    </div>
+
+    <div class="fleet reveal" id="heat" style="margin-top:2px">
+      <div class="fleet-head">
+        <span class="fleet-title">die temperature &middot; last 24 hours &middot; 5-minute buckets &middot; utc</span>
+        <div class="heat-modes" role="group" aria-label="which statistic of each bucket to draw">
+          <button type="button" class="heat-mode" data-stat="max">max</button>
+          <button type="button" class="heat-mode" data-stat="min">min</button>
+          <button type="button" class="heat-mode is-on" data-stat="avg">avg</button>
+        </div>
+      </div>
+      <div class="heat-plot" id="heat-plot">
+        <svg id="heat-svg" role="img" aria-label="Die temperature of every fleet member over the last 24 hours, one line per member, in 5-minute buckets"></svg>
+        <div class="heat-tip" id="heat-tip" hidden></div>
+      </div>
+      <div class="heat-legend" id="heat-legend"></div>
+      <p class="fleet-note" id="heat-note">
+        Every heartbeat carries the sender's die temperature. The cimarrón serving you folds all six
+        into five-minute buckets and keeps a day of them; this page draws that memory from
+        <code>/temps</code> once a minute. Die temperature, not air: it runs well above the room,
+        and only the differences mean anything. A gap is a bucket this blade did not hear. It
+        remembers only since its own last boot. Hour marks are UTC.
       </p>
     </div>
   </div>
@@ -4117,7 +4159,7 @@
         <div class="cv-what">
           <h4>Raisin SE</h4>
           <span class="cv-role">Technical Support Engineer</span>
-          <p>Infrastructure and security in Berlin: Jira administration, and device management with Jamf, Intune, and NinjaOne. BIMI for company domains, certificate lifecycle, DNS verification, and SPF, DKIM, and DMARC.</p>
+          <p>Infrastructure and security in Berlin. Identity and access through Okta: who can sign in, which apps they get, and the accounts that open and close as people join and leave. Device management with Jamf, Intune, and NinjaOne, Jira administration, and certificates and DNS for the company domains. Email reputation follows from that work: mail is harder to spoof or junk, and the logo can show in the inbox once that trust is in place.</p>
         </div>
       </div>
 
@@ -4135,7 +4177,7 @@
         <div class="cv-what">
           <h4>Pinterest</h4>
           <span class="cv-role">Software Engineer, Traffic</span>
-          <p>Service-mesh migration, Envoy and CDN configuration, Terraform on AWS, and Kibana dashboards for traffic and capacity. Mostly from Colombia, with a short time in Berlin.</p>
+          <p>Service-mesh migration with mTLS, Envoy and CDN configuration, Terraform on AWS, and Kibana dashboards for traffic and capacity.</p>
         </div>
       </div>
 
@@ -4432,10 +4474,147 @@
     poll();
   }
 
+  /* The cimarrón serving this page keeps the same 5-minute ring the cabildo
+     draws and hands it over as JSON: six nodes x 288 buckets x max/min/avg,
+     tenths of a degree, null where it heard nothing. Fixed 30-80 C axis, hour
+     marks on the round UTC hour, a gap wherever the blade has no memory.
+     Once a minute while on screen. No third-party script. */
+  var HEAT = ['var(--t1)','var(--t2)','var(--t3)','var(--t4)','var(--t5)','var(--t6)'];
+  var heatSvg = $('heat-svg'), heatPlot = $('heat-plot'), heatTip = $('heat-tip');
+  var heatData = null, heatStat = 'avg', heatEver = false, heatGeo = null;
+
+  function heatHour(h){ var h12 = h % 12 || 12; return h12 + (h < 12 ? 'am' : 'pm'); }
+  function heatPad(n){ return (n < 10 ? '0' : '') + n; }
+
+  function heatRender(){
+    var d = heatData;
+    if (!d || !heatSvg || !heatPlot) return;
+    var W = Math.max(280, heatPlot.clientWidth - (window.innerWidth <= 768 ? 24 : 52));
+    var narrow = W < 560, H = narrow ? 230 : 320;
+    var L = 36, R = 12, T = 10, B = 26, pw = W - L - R, ph = H - T - B;
+    var N = d.n || 288, BS = d.bucket_s || 300;
+    var nowB = Math.floor(d.now / BS), startB = nowB - (N - 1);
+    var YMIN = 300, YMAX = 800;
+    var X = function(k){ return L + pw * k / (N - 1); };
+    var Y = function(v){ v = Math.max(YMIN, Math.min(YMAX, v)); return T + ph * (1 - (v - YMIN) / (YMAX - YMIN)); };
+    heatGeo = { L:L, pw:pw, N:N, startB:startB, BS:BS, W:W };
+    var mono = 'font-family:var(--mono);font-size:11px;';
+    var s = '';
+    for (var v = YMIN; v <= YMAX; v += 100) {
+      var yy = Y(v).toFixed(1);
+      s += '<line x1="' + L + '" x2="' + (L + pw) + '" y1="' + yy + '" y2="' + yy + '" style="stroke:var(--border)"/>';
+      s += '<text x="' + (L - 8) + '" y="' + (Y(v) + 4).toFixed(1) + '" text-anchor="end" style="' + mono + 'fill:var(--text-muted)">' + (v / 10) + '</text>';
+    }
+    var step = narrow ? 21600 : 10800;
+    for (var k = 0; k < N; k++) {
+      var u = (startB + k) * BS;
+      if (u % step !== 0) continue;
+      var xx = X(k).toFixed(1);
+      s += '<line x1="' + xx + '" x2="' + xx + '" y1="' + (T + ph) + '" y2="' + (T + ph + 5) + '" style="stroke:var(--text-muted)"/>';
+      s += '<text x="' + xx + '" y="' + (H - 6) + '" text-anchor="middle" style="' + mono + 'fill:var(--text-muted)">' + heatHour(Math.floor(u / 3600) % 24) + '</text>';
+    }
+    (d.nodes || []).forEach(function(node, i){
+      var arr = node[heatStat] || [], path = '', pen = false, last = -1;
+      for (var k = 0; k < N; k++) {
+        var v = arr[k];
+        if (v == null) { pen = false; continue; }
+        path += (pen ? 'L' : 'M') + X(k).toFixed(1) + ' ' + Y(v).toFixed(1);
+        pen = true; last = k;
+      }
+      if (!path) return;
+      s += '<path d="' + path + '" fill="none" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" style="stroke:' + HEAT[i] + '"/>';
+      s += '<circle cx="' + X(last).toFixed(1) + '" cy="' + Y(arr[last]).toFixed(1) + '" r="2.6" style="fill:' + HEAT[i] + '"/>';
+    });
+    s += '<line id="heat-cursor" y1="' + T + '" y2="' + (T + ph) + '" x1="0" x2="0" style="stroke:var(--text-dim);stroke-dasharray:3 3;display:none"/>';
+    heatSvg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    heatSvg.setAttribute('width', W);
+    heatSvg.setAttribute('height', H);
+    heatSvg.innerHTML = s;
+    $('heat-legend').innerHTML = (d.nodes || []).map(function(n, i){
+      return '<span><i style="background:' + HEAT[i] + '"></i>' + n.name + '</span>';
+    }).join('');
+    var note = $('heat-note');
+    if (d.clock === false && note && note.firstChild) {
+      note.firstChild.textContent = 'The blade serving you has no clock yet, so it has nothing to file a reading under. The chart fills once the fleet hands it the time. ';
+    }
+  }
+
+  function heatHover(ev){
+    var g = heatGeo, d = heatData;
+    if (!g || !d) return;
+    var rect = heatSvg.getBoundingClientRect();
+    var px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
+    var sx = px * g.W / rect.width;
+    var k = Math.round((sx - g.L) / g.pw * (g.N - 1));
+    if (k < 0 || k >= g.N) { heatLeave(); return; }
+    var x = g.L + g.pw * k / (g.N - 1);
+    var cur = heatSvg.querySelector('#heat-cursor');
+    if (cur) { cur.setAttribute('x1', x); cur.setAttribute('x2', x); cur.style.display = ''; }
+    var u = (g.startB + k) * g.BS, t = new Date(u * 1000);
+    var html = '<b>' + heatPad(t.getUTCHours()) + ':' + heatPad(t.getUTCMinutes()) + ' utc</b> &middot; ' + heatStat;
+    (d.nodes || []).forEach(function(n, i){
+      var v = (n[heatStat] || [])[k];
+      html += '<br><i style="background:' + HEAT[i] + '"></i>' + n.name + ' <b>' + (v == null ? '&mdash;' : (v / 10).toFixed(1) + '&deg;') + '</b>';
+    });
+    heatTip.innerHTML = html;
+    heatTip.hidden = false;
+    var tipW = heatTip.offsetWidth, cssX = x * rect.width / g.W + (rect.left - heatPlot.getBoundingClientRect().left);
+    var flip = cssX + tipW + 24 > heatPlot.clientWidth;
+    heatTip.style.left = (flip ? cssX - tipW - 12 : cssX + 12) + 'px';
+    heatTip.style.top = '14px';
+  }
+  function heatLeave(){
+    heatTip.hidden = true;
+    var cur = heatSvg && heatSvg.querySelector('#heat-cursor');
+    if (cur) cur.style.display = 'none';
+  }
+
+  function heatOffline(){
+    if (heatEver) return;
+    $('heat-legend').innerHTML = '';
+    var note = $('heat-note');
+    if (note && note.firstChild) {
+      note.firstChild.textContent = 'The chart is only visible when this page is served by the swarm itself. You are most likely reading a copy. ';
+    }
+  }
+  function heatPoll(){
+    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var killer = ctl ? setTimeout(function(){ ctl.abort(); }, 6000) : 0;
+    fetch('/temps', { cache:'no-store', signal: ctl ? ctl.signal : undefined })
+      .then(function(r){ if(!r.ok) throw new Error('http ' + r.status); return r.json(); })
+      .then(function(d){ clearTimeout(killer); heatData = d; heatEver = true; heatRender(); })
+      .catch(function(){ clearTimeout(killer); heatOffline(); });
+  }
+  var HEAT_MS = 60000, lastHeat = 0;
+  function heatMaybePoll(){
+    if (document.visibilityState !== 'visible' || !onScreen()) return;
+    lastHeat = Date.now();
+    heatPoll();
+  }
+  if (heatSvg) {
+    Array.prototype.forEach.call(document.querySelectorAll('.heat-mode'), function(b){
+      b.addEventListener('click', function(){
+        heatStat = b.getAttribute('data-stat');
+        Array.prototype.forEach.call(document.querySelectorAll('.heat-mode'), function(o){ o.classList.toggle('is-on', o === b); });
+        heatRender();
+      });
+    });
+    heatSvg.addEventListener('mousemove', heatHover);
+    heatSvg.addEventListener('mouseleave', heatLeave);
+    heatSvg.addEventListener('touchstart', heatHover, { passive:true });
+    heatSvg.addEventListener('touchmove', heatHover, { passive:true });
+    heatSvg.addEventListener('touchend', heatLeave);
+    var heatResize = 0;
+    window.addEventListener('resize', function(){ clearTimeout(heatResize); heatResize = setTimeout(heatRender, 150); });
+    setTimeout(heatPoll, 1500);
+    setInterval(heatMaybePoll, HEAT_MS);
+  }
+
   poll();
   setInterval(maybePoll, POLL_MS);
   document.addEventListener('visibilitychange', function(){
     if (document.visibilityState === 'visible' && Date.now() - lastPoll > POLL_MS) maybePoll();
+    if (document.visibilityState === 'visible' && Date.now() - lastHeat > HEAT_MS) heatMaybePoll();
   });
 })();
 </script>

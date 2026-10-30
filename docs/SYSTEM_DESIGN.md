@@ -1,14 +1,7 @@
 # BIOHÓ - Swarm Design
 
-A personal website served from six ESP32-S3 microcontrollers on a shelf in a
-flat in Berlin. Four **serving blades** hold an election over encrypted radio; the
-winner wears **the crown** - a virtual MAC and the one LAN address the router
-forwards - and becomes a **layer-4 TCP splicer**, relaying every public
-connection to the least-busy of the other blades, which terminate TLS 1.3 and
-serve the page from flash. Two **observers** watch the radio and paint the
-fleet on glass. There is no cloud, no reverse-proxy box, no Pi. Load balancing
-is an elected role that moves between blades, and every part of the serving
-path can die without taking the site down.
+A personal website served from six ESP32-S3 microcontrollers on a shelf in a flat in Berlin. Four **serving blades** hold an election over encrypted radio; the winner wears **the crown** - a virtual MAC and the one LAN address the router
+forwards - and becomes a **layer-4 TCP splicer**, relaying every public connection to the least-busy of the other blades, which terminate TLS 1.3 and serve the page from flash. Two **observers** watch the radio and paint the fleet on glass. There is no cloud, no reverse-proxy box, no Pi. Load balancing is an elected role that moves between blades, and every part of the serving path can die without taking the site down.
 
 ![The system on one sheet](firmware/diagrams/system-overview.svg)
 
@@ -29,9 +22,9 @@ Each folder owns its own `diagrams/` with every image the docs embed.
 | Display (vigía) | diymore ESP32-S3 DevKitC N16R8 + 2.8" ST7789 TFT + SK6812 rail | witness - paints the fleet on glass and light |
 | Mission Control (cabildo) | Waveshare ESP32-S3-Touch-LCD-4.3B | witness - touch dashboard |
 
-Identity lives in one ledger, `firmware/eth/main/swarm_identity.c`, keyed by
-each board's factory eFuse MAC. A board not in the ledger boots, says so, and
-serves nothing. Witnesses hear everything and can never be elected.
+Identity lives in one ledger, `firmware/eth/main/swarm_identity.c`, keyed by each board's factory eFuse MAC. A board not in the ledger boots, says so, and serves nothing. 
+
+Witnesses hear everything and can never be elected.
 
 Naming comes from the first free town in the Americas. The elected leader is the **capitán** and wears **the crown**, the serving blades are **cimarrones**, the small screen is the **vigía**, the wide screen is the **cabildo**. The plate the four cimarrones share is the **bohío**. The shell around the whole machine is the rack.
 
@@ -40,50 +33,29 @@ Naming comes from the first free town in the Americas. The elected leader is the
 ![Topology, physical and logical](firmware/diagrams/topology.svg)
 
 - **Wall socket -> the ISP's router**, which holds the static public IP.
-- **Router -> the HPE 1420**, one Cat6 lead from the router's LAN port to p5.
-  That switch is the swarm's backplane. The four blades jack in; the vigía
-  and the cabildo have no Ethernet at all.
-- **Two port-forwards and nothing else**: TCP/80 and TCP/443 to the crown's
-  reserved LAN address, which sits outside the DHCP pool. The admin plane
-  (8443) is never forwarded. There is no inbound path to anything but the
-  crown.
-- **The control plane stays off the wire**: ESP-NOW encrypted radio,
-  channel-pinned, 1 Hz heartbeats. The election that decides who owns the wire
-  never rides the wire it protects, so a switch or cable failure cannot split
-  the brain.
+- **Router -> the HPE 1420**, one Cat6 lead from the router's LAN port to p5.  
+That switch is the swarm's backplane. The four blades jack in; the vigía and the cabildo have no Ethernet at all.
+- **Two port-forwards and nothing else**: TCP/80 and TCP/443 to the crown's reserved LAN address, which sits outside the DHCP pool. The admin plane (8443) is never forwarded.   
+There is no inbound path to anything but the crown.
+- **The control plane stays off the wire**: ESP-NOW encrypted radio, channel-pinned, 1 Hz heartbeats. The election that decides who owns the wire never rides the wire it protects, so a switch or cable failure cannot split the brain.
 
 ## Crown
 
-The public identity is a locally administered virtual MAC that no factory ever
-issued, paired with the reserved LAN address. Both are deployment
-configuration, defined in one place in the firmware.
+The public identity is a locally administered virtual MAC that no factory ever issued, paired with the reserved LAN address. Both are deployment configuration, defined in one place in the firmware.
 
-The elected leader writes the virtual MAC into its own W5500 (SHAR register),
-claims the address, and announces with a gratuitous ARP so the switch relearns
-the port. Losing the crown is the mirror image: drain the in-flight relays,
-restore the board's own MAC, rejoin as a cimarrón. The splicer itself never stops
-- every blade runs one against the day it is elected; without the crown's
-address it simply receives nothing. Two hardenings make the handover
-invisible:
+The elected leader writes the virtual MAC into its own W5500 (SHAR register), claims the address, and announces with a gratuitous ARP so the switch relearns the port. Losing the crown is the mirror image: drain the in-flight relays, restore the board's own MAC, rejoin as a cimarrón. The splicer itself never stops
 
-- **Lease memory**: a blade that abdicates re-uses its remembered DHCP lease
-  immediately instead of waiting out a fresh DHCPDISCOVER, so an ex-leader is
-  reachable on its own address the moment it steps down.
-- **Immediate abdication on serve-loss**: a leader whose own server dies hands
-  the crown over at the next tick rather than reigning over nothing
-  (`crown_tick`: wearing while not ready means drain, abdicate, re-elect).
+- every blade runs one against the day it is elected; without the crown's address it simply receives nothing. Two hardenings make the handover invisible:
+- **Lease memory**: a blade that abdicates re-uses its remembered DHCP lease immediately instead of waiting out a fresh DHCPDISCOVER, so an ex-leader is reachable on its own address the moment it steps down.
+- **Immediate abdication on serve-loss**: a leader whose own server dies hands the crown over at the next tick rather than reigning over nothing (`crown_tick`: wearing while not ready means drain, abdicate, re-elect).
 
-The visitor never learns that anything died: same MAC, same IP, same
-certificate, different silicon.
+The visitor never learns that anything died: same MAC, same IP, same certificate, different silicon.
 
 ## Election
 
 ![The election and the crown](firmware/diagrams/election-crown-lifecycle.svg)
 
-The election is deterministic arithmetic: **the lowest fleet id that is alive
-on the radio, healthy on the wire, and actually serving leads.** Every node
-computes the same answer from the same heartbeats, so there is no consensus
-protocol to wedge and nothing to time out.
+The election is deterministic arithmetic: **the lowest fleet id that is alive on the radio, healthy on the wire, and actually serving leads.** Every node computes the same answer from the same heartbeats, so there is no consensus protocol to wedge and nothing to time out.
 
 | Parameter | Value |
 |---|---|
@@ -94,44 +66,30 @@ protocol to wedge and nothing to time out.
 | Link grace | 6 s before a wire-down blade is ineligible |
 | Handover | under 4 s from power-pull to first served byte |
 
-A blade that is alive but cannot serve (booting, wedged, probe-failing) is
-simply not a candidate. A generation counter tracks every change of reign; the
-cabildo keeps reign records in NVS.
+A blade that is alive but cannot serve (booting, wedged, probe-failing) is simply not a candidate. A generation counter tracks every change of reign; the cabildo keeps reign records in NVS.
 
 ## Load balancer
 
-The capitán does not serve pages. It runs `splice.c`: a **layer-4 TCP splicer**
-that accepts on 443 and relays raw bytes to a cimarrón's LAN-only backend port.
-It never terminates TLS and never parses HTTP - the encrypted session runs
-from the browser straight past it to the blade that answers.
+The capitán does not serve pages. It runs `splice.c`: a **layer-4 TCP splicer**  
+that accepts on 443 and relays raw bytes to a cimarrón's LAN-only backend port.  
+It never terminates TLS and never parses HTTP - the encrypted session runs from the browser straight past it to the blade that answers.
 
 ![Request path](firmware/diagrams/balancer-request-path.svg)
 
 Its rules:
 
 - **Least connections, with round-robin on ties.**
-- **Hard caps instead of queues**: 12 relay pairs total, 4 in flight per
-  backend, listen backlog 8. Past the cap it stops accepting and SYNs park in
-  the backlog.
-- **The backend set is rebuilt every second** from the gossip roster - alive,
-  serving, holding an address. No configuration file names a backend.
-- **The bench only shapes backend choice; it never refuses a visitor.** A
-  backend that accepts and returns nothing three times running sits out 15 s,
-  doubling to 240 s; one with a bench history re-benches after a single
-  failure; any byte returned clears it completely. If every backend is
-  benched, one is picked anyway.
-- **Bench state is keyed by node id** rather than table slot, because the
-  table is rebuilt every second in unstable order and benches must survive
-  that.
-- **Solo is the last rung.** With no other backend alive, the leader splices
-  to its own server over loopback. The degradation ladder is N backends, then
-  fewer, then one, then solo - the site keeps serving from a single blade.
+- **Hard caps instead of queues**: 12 relay pairs total, 4 in flight per backend, listen backlog 8. Past the cap it stops accepting and SYNs park in the backlog.
+- **The backend set is rebuilt every second** from the gossip roster - alive, serving, holding an address. No configuration file names a backend.
+- **The bench only shapes backend choice; it never refuses a visitor.** A backend that accepts and returns nothing three times running sits out 15 s,  
+doubling to 240 s; one with a bench history re-benches after a single failure; any byte returned clears it completely. If every backend is benched, one is picked anyway.
+- **Bench state is keyed by node id** rather than table slot, because the table is rebuilt every second in unstable order and benches must survive that.
+- **Solo is the last rung.** With no other backend alive, the leader splices to its own server over loopback. The degradation ladder is N backends, then fewer, then one, then solo - the site keeps serving from a single blade.
 
 ![The failover ladder](firmware/diagrams/failover-ladder.svg)
 
-A deliberate stand-down drains relays gracefully, so a handover kills nothing.
-A power-pull takes its in-flight relays with it, and the next request lands on
-the new leader.
+A deliberate stand-down drains relays gracefully, so a handover kills nothing.  
+A power-pull takes its in-flight relays with it, and the next request lands on the new leader.
 
 ## Self-healing
 
@@ -139,14 +97,9 @@ Two independent mechanisms, one per side of the relay:
 
 ![Self-healing](firmware/diagrams/self-healing.svg)
 
-- **Self-probe (every blade)**: a TCP connect to its own public port over
-  loopback every 7 s. Two consecutive failures: the blade reports itself
-  not-serving, leaves the election, and every splicer benches it within ~2 s.
-  Six failures (~42 s of a dead server): a deliberate `abort()`, so the
-  coredump names the task the server was stuck in, then reboot.
-- **Circuit breaker (the load balancer)**: judges backends by the bytes that
-  actually come back, independently of the health each backend reports about
-  itself.
+- **Self-probe (every blade)**: a TCP connect to its own public port over loopback every 7 s. Two consecutive failures: the blade reports itself not-serving, leaves the election, and every splicer benches it within ~2 s.  
+Six failures (~42 s of a dead server): a deliberate `abort()`, so the coredump names the task the server was stuck in, then reboot.
+- **Circuit breaker (the load balancer)**: judges backends by the bytes that actually come back, independently of the health each backend reports about itself.
 
 ## Serving path
 
@@ -157,19 +110,14 @@ Two independent mechanisms, one per side of the relay:
 | backend port | every blade, LAN only | the server the splicer relays to - never forwarded |
 | 8443 | every blade, LAN only | admin: roster with addresses, blackbox, coredump, cpu, standby, OTA - never forwarded |
 
-The page is one self-contained `assets/personal.html`, embedded in the
-firmware image brotli- and gzip-compressed, served as a memcpy from flash with
-memoized ETags. The TLS handshake is the only expensive thing the fleet does,
-which is exactly why it is the thing the load balancer spreads. Certificates are
-Let's Encrypt (DNS-01), baked into the image; renewal is a redeploy.
+The page is one self-contained `assets/personal.html`, embedded in the firmware image brotli- and gzip-compressed, served as a memcpy from flash with memoized ETags. The TLS handshake is the only expensive thing the fleet does,  
+which is exactly why it is the thing the load balancer spreads. Certificates are Let's Encrypt (DNS-01), baked into the image; renewal is a redeploy.
 
 ## Heartbeat
 
 ![The heartbeat frame](firmware/diagrams/heartbeat-frame.svg)
 
-One frame, 120 bytes, sent every second by every member over encrypted
-ESP-NOW. The frame is versioned and zero-filled: readers gate each field group
-on the version they require, so a mixed-version fleet during a rolling update
+One frame, 120 bytes, sent every second by every member over encrypted ESP-NOW. The frame is versioned and zero-filled: readers gate each field group on the version they require, so a mixed-version fleet during a rolling update  
 is always safe. What it carries:
 
 | Group | Fields |
@@ -180,33 +128,16 @@ is always safe. What it carries:
 | Release | OTA in progress + percent, firmware version (each variant's `version.txt`) |
 | Load balancer | the splicer's ledger: backends known, accepted/done/refused/killed/idle, p50 connect/first-byte/total, p95, benched bitmask |
 
-Consumers: the election, the public `/roster` JSON (which never carries
-addresses - the admin variant on 8443 adds them), and both observers.
+Consumers: the election, the public `/roster` JSON (which never carries addresses - the admin variant on 8443 adds them), and both observers.
 
 ## Observability
 
-- **Public**: the site's live fleet table polls `/roster` every 3 s - roles,
-  status in plain words, served counts, link bars, die temperature, the
-  load balancer's ledger, fleet p50/p95 averaged over the serving blades. No IPs,
-  no MACs, no internal ports.
-- **Vigía (2.8")**: identity and firmware version, radio-loss line, roster
-  with per-blade served counts, fleet totals and availability, rail mirror,
-  tap-to-blank, and a touch-held OTA window.
-- **Cabildo (4.3")**: four tiles - mission control (status and served columns,
-  fleet-wide traffic chart, chronicle with the reboot coroner, reign records),
-  THE LEDGER (per-blade HTTP-200s above the refusal table),
-  THE RADIO (the gossip tail, 45 s window, seq-gap markers), and the served
-  page itself, baked to RGB565 at build time.
-- **LED rail** (6x SK6812 RGBW, one pixel per member, one global brightness
-  cap): lost red, booting white fast-blink, release white slow-blink, benched
-  white solid, balancing gold (`#e6c229`), serving faint green, vigía deepest blue,
-  cabildo deepest purple, OTA window cyan slow-blink across the rail.
-  White and faint-green states are driven at 120/255 before the cap. The full
-  law is [`firmware/display_led.md`](firmware/display_led.md).
-- **Flight recorder**: every node keeps a blackbox ring in flash (4096 events,
-  survives reboots and OTAs, `GET :8443/blackbox`) plus a coredump partition
-  (`GET :8443/coredump`, read with `espcoredump.py`). Between them, no reboot
-  goes unexplained - the heartbeat carries the cause.
+- **Public**: the site's live fleet table polls `/roster` every 3 s - roles, status in plain words, served counts, link bars, die temperature, the load balancer's ledger, fleet p50/p95 averaged over the serving blades. No IPs, no MACs, no internal ports.
+- **Vigía (2.8")**: identity and firmware version, radio-loss line, roster with per-blade served counts, fleet totals and availability, rail mirror, tap-to-blank, and a touch-held OTA window.
+- **Cabildo (4.3")**: four tiles - mission control (status and served columns, fleet-wide traffic chart, chronicle with the reboot coroner, reign records), THE LEDGER (per-blade HTTP-200s above the refusal table), THE RADIO (the gossip tail, 45 s window, seq-gap markers), and the served page itself, baked to RGB565 at build time.
+- **LED rail** (6x SK6812 RGBW, one pixel per member, one global brightness cap): lost red, booting white fast-blink, release white slow-blink, benched white solid, balancing gold (`#e6c229`), serving faint green, vigía deepest blue, cabildo deepest purple, OTA window cyan slow-blink across the rail.  
+White and faint-green states are driven at 120/255 before the cap. The full law is [`firmware/display_led.md`](firmware/display_led.md).
+- **Flight recorder**: every node keeps a blackbox ring in flash (4096 events, survives reboots and OTAs, `GET :8443/blackbox`) plus a coredump partition (`GET :8443/coredump`, read with `espcoredump.py`). Between them, no reboot goes unexplained - the heartbeat carries the cause.
 
 ## Updates that cannot brick the fleet
 
@@ -214,43 +145,22 @@ addresses - the admin variant on 8443 adds them), and both observers.
 
 Blades update over the admin plane, orchestrated by `tools/deploy.sh`:
 
-1. **Followers first, leader last** - the public face keeps serving the old
-   image until everyone else has proven the new one.
+1. **Followers first, leader last** - the public face keeps serving the old image until everyone else has proven the new one.
 2. Gates 1-3 per node: image accepted, node rebooted, build hash changed.
-3. **Gate 4, the trial**: a fresh image must survive 90 s of continuous
-   serving within a 300 s deadline or the bootloader rolls back to the
-   previous slot. The deploy polls each node's published `on_trial` flag
-   rather than sleeping and hoping.
+3. **Gate 4, the trial**: a fresh image must survive 60 s of continuous serving within a 200 s deadline or the bootloader rolls back to the  previous slot. The deploy polls each node's published `on_trial` flag  rather than sleeping and hoping.
 
-Every variant carries a version (`version.txt`, baked into the app descriptor,
-gossiped in the heartbeat, shown on every glass), so any screen can name the
-exact image any member runs.
+Every variant carries a version (`version.txt`, baked into the app descriptor, gossiped in the heartbeat, shown on every glass), so any screen can name the exact image any member runs.
 
-The radio-only observers have no standing network, so they update through an
-**OTA window**: a deliberate 4-second touch-hold joins WiFi on demand, opens
-the same key-gated OTA door the blades use, shows its address on the glass
-while the LED rail blinks cyan, and closes itself after 10 minutes, on
-cancel, or on success. A fresh observer image must hear at least one peer on
-the radio within its trial window or the bootloader rolls it back
-([`firmware/ota_deployments.md`](firmware/ota_deployments.md)).
+The radio-only observers have no standing network, so they update through an **OTA window**: a deliberate 4-second touch-hold joins WiFi on demand, opens the same key-gated OTA door the blades use, shows its address on the glass while the LED rail blinks cyan, and closes itself after 10 minutes, on cancel, or on success. A fresh observer image must hear at least one peer on the radio within its trial window or the bootloader rolls it back ([`firmware/ota_deployments.md`](firmware/ota_deployments.md)).
 
-All slots are dual, and partition-table changes are the one thing that still
-requires USB.
+All slots are dual, and partition-table changes are the one thing that still requires USB.
 
 ## Security posture
 
-- **Two forwards, one speaker**: only the crown answers the world; followers
-  are wire-silent. From outside, the swarm is one quiet machine.
-- **Port split**: everything administrative lives on 8443, LAN-only, never
-  forwarded, key-gated (`X-Bioho-Key`, minted by `tools/gen_secrets.sh`
-  into a gitignored header). The backend port likewise never leaves the LAN.
-- **Encrypted control plane**: ESP-NOW with PMK/LMK from the same secrets
-  header. A neighbour cannot vote in the election.
-- **No egress**: blades speak when spoken to. The only outbound traffic is
-  DHCP and ARP.
-- **Public JSON discipline**: `/roster` carries no addresses; the page carries
-  no internal ports, no MAC, no LAN topology. Cross-origin reads of the
-  roster are refused; robots are asked to leave it alone.
-- **Crash-only**: no graceful shutdown exists anywhere. Pulling a plug is a
-  supported operation and the only recovery procedure is boot.
+- **Two forwards, one speaker**: only the crown answers the world; followers are wire-silent. From outside, the swarm is one quiet machine.
+- **Port split**: everything administrative lives on 8443, LAN-only, never forwarded, key-gated (`X-Bioho-Key`, minted by `tools/gen_secrets.sh`into a gitignored header). The backend port likewise never leaves the LAN.
+- **Encrypted control plane**: ESP-NOW with PMK/LMK from the same secrets header. A neighbour cannot vote in the election.
+- **No egress**: blades speak when spoken to. The only outbound traffic is DHCP and ARP.
+- **Public JSON discipline**: `/roster` carries no addresses; the page carries no internal ports, no MAC, no LAN topology. Cross-origin reads of the roster are refused; robots are asked to leave it alone.
+- **Crash-only**: no graceful shutdown exists anywhere. Pulling a plug is a supported operation and the only recovery procedure is boot.
 

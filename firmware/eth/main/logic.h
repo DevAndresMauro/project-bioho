@@ -115,6 +115,23 @@ static inline uint8_t bioho_elect(uint8_t self_id, bool self_ok,
     return best == 0xff ? 0 : best;
 }
 
+/* A fresh claimant looks unable for a moment: claiming the crown stops and
+ * restarts the PHY (swap_identity), and until the static address is set the
+ * blade holds no IP, so its heartbeat would say serving=0 to the very peers
+ * that just elected it. On 2026-10-23 the next-lowest id read that 1-3 s
+ * blackout as a dead claimant and claimed too, and the one after it did the
+ * same - three blades wearing the vMAC inside three seconds. For grace_ms
+ * from the claim the claimant counts as holding an address; past it the
+ * truth shows, so a claimant whose link never returns is still replaced. */
+static inline bool bioho_claim_grace(bool wearing, bool has_ip, uint32_t claimed_ms,
+                                     uint32_t now_ms, uint32_t grace_ms)
+{
+    if (has_ip) {
+        return true;
+    }
+    return wearing && (uint32_t)(now_ms - claimed_ms) < grace_ms;
+}
+
 /* THE BENCH's two laws (the splicer's circuit breaker).
  * Threshold: a fresh offender must fail `streak` connections in a row before
  * it is benched, but a repeat offender re-benches on ONE - re-proving a known
@@ -269,6 +286,20 @@ static inline bool bioho_probe_room(uint8_t pairs, uint16_t pool)
     return (uint16_t)(2u * pairs + 4u) <= pool;
 }
 
+/* A probe that failed inside the window in which the splicer admitted a
+ * visitor is not evidence of death: a congested accept path times out or
+ * resets the probe's own connect exactly as a dead listener would, and on
+ * 2026-10-23 the leader stood itself down twice on morning bursts because
+ * of it. Admission is proof of life, so the verdict softens to busy and the
+ * streak stands still; with nobody admitted the verdict stands. */
+static inline bioho_probe_t bioho_probe_judge(bioho_probe_t v, uint32_t admitted_since)
+{
+    if (v == BIOHO_PROBE_DEAD && admitted_since > 0) {
+        return BIOHO_PROBE_BUSY;
+    }
+    return v;
+}
+
 /* A relayed connection whose client has sent nothing since accept is not a
  * visitor: a browser's ClientHello follows the SYN within one round trip.
  * Past silent_ms it is a scanner or a half-open probe holding a relay slot
@@ -279,4 +310,402 @@ static inline bool bioho_pair_silent(bool client_spoke, int64_t accept_ms,
                                      int64_t now_ms, int64_t silent_ms)
 {
     return !client_spoke && now_ms - accept_ms > silent_ms;
+}
+
+/* THE REFUSAL SAMPLER. The per-kind tallies say HOW MANY 400s; nothing said
+ * WHAT they were - no peer, no Host, no request line - and 12,600 of them
+ * landed on one leader in 36 hours with no way to tell a wordlist scanner
+ * from a vhost probe from Host-less garbage. A small RAM ring of the most
+ * recent refusals answers that: the newest N, each clipped to a line's worth
+ * of fields. No flash - this is what is happening now, not history. Peers
+ * mean different things per listener: the :80 redirect sees the internet
+ * (the router forwards it straight to the crown), the public TLS port sees
+ * the splicer's own address (the relay stands between). The dump says so. */
+#define BIOHO_REFUSAL_N       32
+#define BIOHO_REFUSAL_METHOD  8
+#define BIOHO_REFUSAL_URI     48
+#define BIOHO_REFUSAL_HOST    32
+
+typedef struct {
+    uint32_t at_ms;                      /* ms since boot */
+    uint32_t peer;                       /* IPv4, host byte order; 0 = unknown */
+    uint16_t port;                       /* the listener it arrived on */
+    uint16_t status;                     /* what we answered: 400, 404, 500 ... */
+    bool     bad_host;                   /* the :80 redirect's own 400 - Host named nobody we are */
+    char     method[BIOHO_REFUSAL_METHOD];
+    char     uri[BIOHO_REFUSAL_URI];
+    char     host[BIOHO_REFUSAL_HOST];
+} bioho_refusal_t;
+
+typedef struct {
+    bioho_refusal_t rec[BIOHO_REFUSAL_N];
+    uint32_t total;                      /* ever recorded; the ring keeps the last N */
+} bioho_refusals_t;
+
+/* Bounded copy that always terminates; NULL or "" lands as "-" so a dump
+ * column is never blank. Truncation is the point: the first bytes of a URI
+ * name the scanner, the rest is its wordlist. cap must be >= 2. */
+static inline void bioho_refusal_clip(char *dst, size_t cap, const char *src)
+{
+    if (!src || !*src) {
+        src = "-";
+    }
+    size_t n = strlen(src);
+    if (n >= cap) {
+        n = cap - 1;
+    }
+    memcpy(dst, src, n);
+    dst[n] = '\0';
+}
+
+static inline void bioho_refusal_record(bioho_refusals_t *r, uint32_t at_ms, uint32_t peer,
+                                        uint16_t port, uint16_t status, bool bad_host,
+                                        const char *method, const char *uri, const char *host)
+{
+    bioho_refusal_t *e = &r->rec[r->total % BIOHO_REFUSAL_N];
+    e->at_ms = at_ms;
+    e->peer = peer;
+    e->port = port;
+    e->status = status;
+    e->bad_host = bad_host;
+    bioho_refusal_clip(e->method, sizeof(e->method), method);
+    bioho_refusal_clip(e->uri, sizeof(e->uri), uri);
+    bioho_refusal_clip(e->host, sizeof(e->host), host);
+    r->total++;
+}
+
+/* Render newest first, one line per refusal, into out[cap]. Whole lines
+ * only: a line that does not fit is dropped together with everything older,
+ * so the text always parses and the NUL is always there. Returns the length. */
+static inline size_t bioho_refusal_dump(const bioho_refusals_t *r, char *out, size_t cap)
+{
+    if (cap == 0) {
+        return 0;
+    }
+    uint32_t have = r->total < BIOHO_REFUSAL_N ? r->total : BIOHO_REFUSAL_N;
+    int n = snprintf(out, cap, "refusals total=%u showing=%u (newest first; peers on the "
+                     "public TLS port are the splicer, not the visitor)\n",
+                     (unsigned)r->total, (unsigned)have);
+    if (n < 0 || (size_t)n >= cap) {
+        out[0] = '\0';
+        return 0;
+    }
+    size_t len = (size_t)n;
+    for (uint32_t i = 0; i < have; i++) {
+        const bioho_refusal_t *e = &r->rec[(r->total - 1 - i) % BIOHO_REFUSAL_N];
+        n = snprintf(out + len, cap - len, "#%u +%u.%03us :%u %u.%u.%u.%u %u%s %s %s host=%s\n",
+                     (unsigned)(r->total - i), (unsigned)(e->at_ms / 1000),
+                     (unsigned)(e->at_ms % 1000), (unsigned)e->port,
+                     (unsigned)(e->peer >> 24), (unsigned)((e->peer >> 16) & 255u),
+                     (unsigned)((e->peer >> 8) & 255u), (unsigned)(e->peer & 255u),
+                     (unsigned)e->status, e->bad_host ? " bad-host" : "",
+                     e->method, e->uri, e->host);
+        if (n < 0 || (size_t)n >= cap - len) {
+            out[len] = '\0';
+            break;
+        }
+        len += (size_t)n;
+    }
+    return len;
+}
+
+/* THE RATE RING. Observers see only monotonic counters in the heartbeat; a
+ * count says how many refusals ever, never how many a minute ago. One add per
+ * second (the observers' update cadence) keeps the last minute per second
+ * (a sliding "now") and the last hour per minute (the chart). Saturating
+ * stores: a 65,535-a-second flood reads as the ceiling, never as a wrap. */
+#define BIOHO_RATE_SECS 60
+#define BIOHO_RATE_MINS 60
+
+typedef struct {
+    uint16_t sec[BIOHO_RATE_SECS];   /* per-second deltas, the last minute */
+    uint16_t min[BIOHO_RATE_MINS];   /* per-minute totals, the last hour */
+    uint8_t  sec_pos, min_pos;
+    uint8_t  sec_n;                  /* seconds banked toward the current minute */
+    uint8_t  min_n;                  /* minutes recorded, saturates at BIOHO_RATE_MINS */
+    uint32_t acc;                    /* the current minute so far */
+} bioho_rate_ring_t;
+
+static inline uint16_t bioho_sat16(uint32_t v)
+{
+    return v > 0xffffu ? (uint16_t)0xffffu : (uint16_t)v;
+}
+
+/* The change between two readings of a counter that may have been reset
+ * underneath us (a reboot, POST /reset). A counter running backwards is a
+ * fresh start, not a negative rate. */
+static inline uint32_t bioho_delta(uint32_t now, uint32_t last, bool have_last)
+{
+    return (have_last && now >= last) ? now - last : 0;
+}
+
+/* Bank one second. Returns true when that second completed a minute, i.e.
+ * min[] gained a bucket (bioho_rate_last_min reads it). */
+static inline bool bioho_rate_add(bioho_rate_ring_t *r, uint32_t delta)
+{
+    r->sec[r->sec_pos] = bioho_sat16(delta);
+    r->sec_pos = (uint8_t)((r->sec_pos + 1) % BIOHO_RATE_SECS);
+    r->acc += delta;
+    if (++r->sec_n < BIOHO_RATE_SECS) {
+        return false;
+    }
+    r->min[r->min_pos] = bioho_sat16(r->acc);
+    r->min_pos = (uint8_t)((r->min_pos + 1) % BIOHO_RATE_MINS);
+    if (r->min_n < BIOHO_RATE_MINS) {
+        r->min_n++;
+    }
+    r->acc = 0;
+    r->sec_n = 0;
+    return true;
+}
+
+/* the last 60 seconds, sliding - "per minute, now" */
+static inline uint32_t bioho_rate_last60(const bioho_rate_ring_t *r)
+{
+    uint32_t sum = 0;
+    for (int i = 0; i < BIOHO_RATE_SECS; i++) {
+        sum += r->sec[i];
+    }
+    return sum;
+}
+
+/* the most recently completed minute (0 before the first one completes) */
+static inline uint16_t bioho_rate_last_min(const bioho_rate_ring_t *r)
+{
+    if (r->min_n == 0) {
+        return 0;
+    }
+    return r->min[(r->min_pos + BIOHO_RATE_MINS - 1) % BIOHO_RATE_MINS];
+}
+
+/* the busiest completed minute of the recorded hour */
+static inline uint16_t bioho_rate_peak(const bioho_rate_ring_t *r)
+{
+    uint16_t peak = 0;
+    for (int i = 0; i < r->min_n; i++) {
+        if (r->min[i] > peak) {
+            peak = r->min[i];
+        }
+    }
+    return peak;
+}
+
+/* everything in the recorded hour, the running minute included */
+static inline uint32_t bioho_rate_hour(const bioho_rate_ring_t *r)
+{
+    uint32_t sum = r->acc;
+    for (int i = 0; i < r->min_n; i++) {
+        sum += r->min[i];
+    }
+    return sum;
+}
+
+/* httpd's error enum, index -> the status it answers with. ONE table for the
+ * blade's sampler and anyone else who reads err_kind[] by index; the blade
+ * pins the count to the enum with a _Static_assert. Out of range -> 0. */
+#define BIOHO_ERR_KINDS 13
+static inline uint16_t bioho_err_status(unsigned idx)
+{
+    static const uint16_t t[BIOHO_ERR_KINDS] = {
+        500, 501, 505, 400, 401, 403, 404, 405, 408, 411, 413, 414, 431
+    };
+    return idx < BIOHO_ERR_KINDS ? t[idx] : 0;
+}
+
+/* THE FLEET'S CLOCK. The blades are the only members with a wire to the
+ * internet, so they fetch NTP and gossip it in a 16-byte time beacon with its
+ * own magic (swarm.c): an image that predates it fails the heartbeat's magic
+ * check at the door and never reads a byte. A receiver adopts a beacon when
+ * its own clock is unset, or disagrees by more than a tolerance - never for
+ * jitter inside it, so a bucket edge cannot wander with the radio. "Unset" is
+ * anything before BIOHO_TIME_SANE_S: an ESP32 boots in 1970 and counts up from
+ * there, which no clock that was ever set can read. */
+#define BIOHO_TIME_SANE_S 1700000000u   /* 2023-11-14: the fleet did not exist yet */
+
+static inline bool bioho_time_sane(uint32_t unix_s)
+{
+    return unix_s >= BIOHO_TIME_SANE_S;
+}
+
+static inline bool bioho_time_adopt(uint32_t local_s, uint32_t remote_s, uint32_t tol_s)
+{
+    if (!bioho_time_sane(remote_s)) {
+        return false;                    /* the sender's clock is unset too */
+    }
+    if (!bioho_time_sane(local_s)) {
+        return true;
+    }
+    uint32_t d = local_s > remote_s ? local_s - remote_s : remote_s - local_s;
+    return d > tol_s;
+}
+
+/* THE THERMAL HISTORY. The heartbeat says what every die reads NOW; nothing
+ * said what it read at 3am. The cabildo folds each reading into the 5-minute
+ * UTC bucket it belongs to - count, sum, min, max per node - and keeps the
+ * last 24 hours of buckets in a ring keyed by the ABSOLUTE bucket number
+ * (unix / 300). A slot is trusted only while its key matches the bucket asked
+ * for, so a reused slot, a clock jump and a bucket nobody heard all read as
+ * zero - the glass's word for "no reading". Buckets are wall-clock aligned,
+ * which puts a bucket edge on every round hour. Six nodes: the rack's four
+ * blades and both observers. */
+#define BIOHO_TEMP_NODES    6
+#define BIOHO_TEMP_BUCKETS  288          /* 24 h of 5-minute buckets */
+#define BIOHO_TEMP_BUCKET_S 300
+
+typedef struct {
+    int32_t  sum;                        /* tenths of a degree, summed */
+    uint16_t n;                          /* readings folded in; 0 = nobody heard */
+    int16_t  min, max;
+} bioho_temp_cell_t;
+
+typedef struct {
+    uint32_t          key[BIOHO_TEMP_BUCKETS];                     /* the absolute bucket each slot holds */
+    bioho_temp_cell_t cell[BIOHO_TEMP_NODES][BIOHO_TEMP_BUCKETS];
+} bioho_temp_hist_t;
+
+typedef enum { BIOHO_TEMP_MAX, BIOHO_TEMP_MIN, BIOHO_TEMP_AVG } bioho_temp_stat_t;
+
+static inline uint32_t bioho_temp_bucket(uint32_t unix_s)
+{
+    return unix_s / BIOHO_TEMP_BUCKET_S;
+}
+
+/* Fold one reading in. Refuses an unset clock: 1970 would key the slots as
+ * buckets 0..287 and the first real sync would then find a day of ghosts. */
+static inline bool bioho_temp_record(bioho_temp_hist_t *h, unsigned node,
+                                     uint32_t unix_s, int16_t c10)
+{
+    if (node >= BIOHO_TEMP_NODES || !bioho_time_sane(unix_s)) {
+        return false;
+    }
+    uint32_t b = bioho_temp_bucket(unix_s);
+    unsigned slot = b % BIOHO_TEMP_BUCKETS;
+    if (h->key[slot] != b) {             /* the slot's day is over: fresh for every node */
+        for (unsigned i = 0; i < BIOHO_TEMP_NODES; i++) {
+            h->cell[i][slot] = (bioho_temp_cell_t){ 0 };
+        }
+        h->key[slot] = b;
+    }
+    bioho_temp_cell_t *c = &h->cell[node][slot];
+    if (c->n == 0) {
+        c->sum = c10;
+        c->min = c->max = c10;
+    } else {
+        c->sum += c10;
+        if (c10 < c->min) c->min = c10;
+        if (c10 > c->max) c->max = c10;
+    }
+    c->n++;                              /* 300 a bucket at 1 Hz - nowhere near the type */
+    return true;
+}
+
+/* One bucket's statistic, tenths of a degree; 0 when nobody heard that node
+ * in that bucket, or the slot has since moved on to another day. */
+static inline int16_t bioho_temp_value(const bioho_temp_hist_t *h, unsigned node,
+                                       uint32_t bucket, bioho_temp_stat_t stat)
+{
+    unsigned slot = bucket % BIOHO_TEMP_BUCKETS;
+    if (node >= BIOHO_TEMP_NODES || h->key[slot] != bucket) {
+        return 0;
+    }
+    const bioho_temp_cell_t *c = &h->cell[node][slot];
+    if (c->n == 0) {
+        return 0;
+    }
+    switch (stat) {
+    case BIOHO_TEMP_MAX: return c->max;
+    case BIOHO_TEMP_MIN: return c->min;
+    default:             return (int16_t)(c->sum / (int32_t)c->n);
+    }
+}
+
+/* The window the glass shows: the 288 buckets ending with the one now_s is in. */
+static inline uint32_t bioho_temp_window_start(uint32_t now_s)
+{
+    return bioho_temp_bucket(now_s) - (BIOHO_TEMP_BUCKETS - 1);
+}
+
+/* Where the hour marks go: the window indices that begin a round step_h-hour
+ * UTC mark, each with the hour of day (0-23) it names. 300 divides 3600, so a
+ * mark is always a bucket edge. Returns the count written, at most max. */
+static inline int bioho_temp_ticks(uint32_t now_s, unsigned step_h,
+                                   uint16_t *idx, uint8_t *hour, int max)
+{
+    uint32_t start = bioho_temp_window_start(now_s);
+    uint32_t step_s = step_h * 3600u;
+    int n = 0;
+    for (unsigned k = 0; k < BIOHO_TEMP_BUCKETS && n < max; k++) {
+        uint32_t unix_s = (start + k) * BIOHO_TEMP_BUCKET_S;
+        if (unix_s % step_s == 0) {
+            idx[n] = (uint16_t)k;
+            hour[n] = (uint8_t)((unix_s / 3600u) % 24u);
+            n++;
+        }
+    }
+    return n;
+}
+
+/* "12am" .. "11pm": a mark on the glass has 40 px, not room for "00:00 UTC". */
+static inline void bioho_hour_label(unsigned hour, char *out, size_t cap)
+{
+    hour %= 24u;
+    unsigned h12 = hour % 12u ? hour % 12u : 12u;
+    snprintf(out, cap, "%u%s", h12, hour < 12u ? "am" : "pm");
+}
+
+/* The six the rack holds, in the order every glass and the page draw them:
+ * the four blades, then the vigía, then the cabildo. WS (id 5) is the shelf
+ * spare and has no line. slot <-> fleet id, -1 / 0 for anything else. */
+static inline int bioho_temp_slot(uint8_t id)
+{
+    switch (id) {
+    case 1: return 0;
+    case 2: return 1;
+    case 3: return 2;
+    case 4: return 3;
+    case 6: return 4;
+    case 7: return 5;
+    default: return -1;
+    }
+}
+
+static inline uint8_t bioho_temp_slot_id(unsigned slot)
+{
+    static const uint8_t ids[BIOHO_TEMP_NODES] = { 1, 2, 3, 4, 6, 7 };
+    return slot < BIOHO_TEMP_NODES ? ids[slot] : 0;
+}
+
+/* One node's statistic over the window ending at now_s, as a JSON array:
+ * integers in tenths of a degree, null where nobody heard. The page draws a
+ * null as a gap in the line, never as a number. Returns the length written,
+ * or 0 when the array does not fit - the caller sizes out[] for the worst
+ * case (288 x "null," + brackets = 1442), so 0 is a bug, not a truncation. */
+static inline size_t bioho_temp_json_series(const bioho_temp_hist_t *h, unsigned node,
+                                            uint32_t now_s, bioho_temp_stat_t stat,
+                                            char *out, size_t cap)
+{
+    uint32_t start = bioho_temp_window_start(now_s);
+    size_t len = 0;
+    if (cap < 3) {
+        return 0;
+    }
+    out[len++] = '[';
+    for (unsigned k = 0; k < BIOHO_TEMP_BUCKETS; k++) {
+        uint32_t b = start + k;
+        unsigned slot = b % BIOHO_TEMP_BUCKETS;
+        bool heard = node < BIOHO_TEMP_NODES && h->key[slot] == b && h->cell[node][slot].n != 0;
+        int n = heard ? snprintf(out + len, cap - len, "%s%d", k ? "," : "",
+                                 (int)bioho_temp_value(h, node, b, stat))
+                      : snprintf(out + len, cap - len, "%snull", k ? "," : "");
+        if (n < 0 || (size_t)n >= cap - len) {
+            return 0;
+        }
+        len += (size_t)n;
+    }
+    if (cap - len < 2) {
+        return 0;
+    }
+    out[len++] = ']';
+    out[len] = '\0';
+    return len;
 }

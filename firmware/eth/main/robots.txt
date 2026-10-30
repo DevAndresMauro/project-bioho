@@ -6,7 +6,8 @@ User-agent: *
 Allow: /$
 Allow: /llms.txt
 Disallow: /roster
+Disallow: /temps
 Crawl-delay: 10
 
-# /roster is live swarm telemetry, regenerated per request. It has no archival
-# value and polling it takes capacity away from human visitors.
+# /roster and /temps are live swarm telemetry, regenerated per request. They have
+# no archival value and polling them takes capacity away from human visitors.

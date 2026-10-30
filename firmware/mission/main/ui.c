@@ -1,5 +1,5 @@
 /* bioho mission (the cabildo, 4.3"): the mission-control dashboard.
- * 800x480, LVGL 9, the site's palette, FOUR tiles (swipe right through them):
+ * 800x480, LVGL 9, the site's palette, FIVE tiles (swipe right through them):
  *   tile 0 - mission control: node rows with status + served columns, the
  *            CHRONICLE, fleet-wide traffic chart (requests + p50), quorum,
  *            fleet availability, reign records, RELEASE progress on rows.
@@ -7,7 +7,8 @@
  *            fleet 200-OK total in the corner.
  *   tile 2 - THE RADIO: the gossip tail, every heartbeat heard in the last
  *            45 s with rssi, seq and missed-frame markers.
- *   tile 3 - "what the world sees": the served page baked to RGB565 at build
+ *   tile 3 - TEMPERATURE: every die, the last 24 hours, 5-minute UTC buckets.
+ *   tile 4 - "what the world sees": the served page baked to RGB565 at build
  *            time (render_page_asset.py).
  * Footer tap blanks the backlight (CH422G on/off); any touch wakes.
  * Longest crown reign persists in NVS - the hall of fame survives reboots.
@@ -17,7 +18,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <time.h>
+#include <assert.h>
 #include "esp_lvgl_port.h"
+#include "esp_heap_caps.h"
+#include "logic.h"
+#include "swarm_identity.h"
 #include "esp_timer.h"
 #include "esp_system.h"   /* esp_reset_reason - the cabildo states its own boot cause */
 #include "nvs.h"
@@ -82,6 +88,38 @@ static lv_obj_t *s_col_served[ERR_COLS]; /* the 200-OK line above each refusal c
 static lv_obj_t *s_ok_total;             /* fleet 200-OK, corner of the ledger tile */
 static lv_obj_t *s_avail_lbl;
 static lv_obj_t *s_radio_sum, *s_radio_lbl;   /* tile 2: the gossip tail */
+
+/* ---- TEMPERATURE (tile 3) ----
+ * Every heartbeat carries a die temperature; the cabildo folds each one into
+ * logic.h's thermal history (5-minute UTC buckets, 24 h, per node) and draws
+ * the fleet's day as six lines. The clock comes from the blades' time beacon
+ * (swarm.c) - until the first one lands there is no UTC to bucket by, and the
+ * tile says so instead of inventing an axis. Zero is the word for "nobody
+ * heard this node in this bucket". */
+#define TEMP_XTICKS_MAX 9
+#define TEMP_Y_MIN_C10  300
+#define TEMP_Y_MAX_C10  800
+#define TEMP_Y_LABELS   6
+#define TEMP_REDRAW_S   10
+#define TEMP_CARD_Y     72
+#define TEMP_CH_X       46
+#define TEMP_CH_Y       30
+#define TEMP_CH_W       718
+#define TEMP_CH_H       264
+/* Six lines, in slot order (blades 1-4, vigía, cabildo). Gold, green, amber
+ * and the page's text colour are the shelf's own; blue and purple are the
+ * rail's two witness colours, light enough to read on the card. */
+static const uint32_t TEMP_COLOR[BIOHO_TEMP_NODES] = {
+    0xe6c229, 0x43e86a, 0xffb020, 0xe8e6e3,
+    0x3b6cff, 0xa06bff,
+};
+static bioho_temp_hist_t *s_temp_hist;
+static int32_t *s_temp_y[BIOHO_TEMP_NODES];
+static lv_obj_t *s_temp_chart, *s_temp_cap, *s_temp_clock, *s_temp_btn[3];
+static lv_obj_t *s_temp_xlbl[TEMP_XTICKS_MAX];
+static lv_chart_series_t *s_temp_ser[BIOHO_TEMP_NODES];
+static bioho_temp_stat_t s_temp_stat = BIOHO_TEMP_AVG;
+static uint32_t s_temp_drawn_s;
 
 static lv_obj_t *s_tile0, *s_release, *s_badge, *s_badge_lbl, *s_chart, *s_quorum, *s_leader, *s_gen,
                 *s_stable, *s_record_lbl, *s_arc_lbl, *s_temp_lbl, *s_req_now, *s_lat_now;
@@ -439,6 +477,88 @@ static void wake_cb(lv_event_t *ev)
 
 /* ---------- build ---------- */
 
+static const char *temp_node_name(uint8_t id)
+{
+    for (size_t i = 0; i < swarm_fleet_size(); i++) {
+        const swarm_member_t *m = swarm_member(i);
+        if (m->id != id) continue;
+        if (!m->eligible && m->witness_role) return m->witness_role;
+        return m->shortname;
+    }
+    return "?";
+}
+
+static const char *temp_stat_word(bioho_temp_stat_t st)
+{
+    return st == BIOHO_TEMP_MAX ? "MAX" : st == BIOHO_TEMP_MIN ? "MIN" : "AVERAGE";
+}
+
+static void temp_render(uint32_t now_s)
+{
+    uint32_t start = bioho_temp_window_start(now_s);
+    for (int i = 0; i < BIOHO_TEMP_NODES; i++) {
+        for (int k = 0; k < BIOHO_TEMP_BUCKETS; k++) {
+            s_temp_y[i][k] = bioho_temp_value(s_temp_hist, (unsigned)i, start + (uint32_t)k, s_temp_stat);
+        }
+    }
+    lv_chart_refresh(s_temp_chart);
+
+    uint16_t idx[TEMP_XTICKS_MAX];
+    uint8_t hour[TEMP_XTICKS_MAX];
+    int nt = bioho_temp_ticks(now_s, 3, idx, hour, TEMP_XTICKS_MAX);
+    for (int i = 0; i < TEMP_XTICKS_MAX; i++) {
+        if (i >= nt) {
+            lv_obj_add_flag(s_temp_xlbl[i], LV_OBJ_FLAG_HIDDEN);
+            continue;
+        }
+        char hl[8];
+        bioho_hour_label(hour[i], hl, sizeof(hl));
+        lv_label_set_text(s_temp_xlbl[i], hl);
+        lv_obj_remove_flag(s_temp_xlbl[i], LV_OBJ_FLAG_HIDDEN);
+        int x = TEMP_CH_X + (int)(((int32_t)TEMP_CH_W * idx[i]) / (BIOHO_TEMP_BUCKETS - 1)) - 20;
+        lv_obj_set_pos(s_temp_xlbl[i], x < TEMP_CH_X - 16 ? TEMP_CH_X - 16 : x, TEMP_CH_Y + TEMP_CH_H + 4);
+    }
+    lv_label_set_text_fmt(s_temp_cap, "LAST 24 HOURS - %s die temperature per 5-minute bucket, C - a bucket with no reading sits on the floor",
+                          temp_stat_word(s_temp_stat));
+    s_temp_drawn_s = now_s;
+}
+
+static void temp_set_mode(bioho_temp_stat_t st)
+{
+    s_temp_stat = st;
+    for (int i = 0; i < 3; i++) {
+        bool on = (bioho_temp_stat_t)i == st;
+        if (on) lv_obj_add_state(s_temp_btn[i], LV_STATE_CHECKED);
+        else    lv_obj_remove_state(s_temp_btn[i], LV_STATE_CHECKED);
+        lv_obj_set_style_text_color(lv_obj_get_child(s_temp_btn[i], 0), lv_color_hex(on ? C_BG : C_DIM), 0);
+    }
+}
+
+static void temp_mode_cb(lv_event_t *ev)
+{
+    temp_set_mode((bioho_temp_stat_t)(intptr_t)lv_event_get_user_data(ev));
+    uint32_t now_s = (uint32_t)time(NULL);
+    if (bioho_time_sane(now_s)) temp_render(now_s);
+}
+
+static lv_obj_t *mk_mode_btn(lv_obj_t *parent, int x, const char *txt, bioho_temp_stat_t st)
+{
+    lv_obj_t *b = lv_button_create(parent);
+    lv_obj_set_pos(b, x, 10);
+    lv_obj_set_size(b, 96, 40);
+    lv_obj_set_style_radius(b, 4, 0);
+    lv_obj_set_style_shadow_width(b, 0, 0);
+    lv_obj_set_style_bg_color(b, lv_color_hex(C_CARD2), 0);
+    lv_obj_set_style_border_color(b, lv_color_hex(C_BORDER), 0);
+    lv_obj_set_style_border_width(b, 1, 0);
+    lv_obj_set_style_bg_color(b, lv_color_hex(C_ACCENT), LV_STATE_CHECKED);
+    lv_obj_set_style_border_color(b, lv_color_hex(C_ACCENT), LV_STATE_CHECKED);
+    lv_obj_t *l = mk_label(b, 0, 0, &lv_font_montserrat_20, C_DIM, txt);
+    lv_obj_center(l);
+    lv_obj_add_event_cb(b, temp_mode_cb, LV_EVENT_CLICKED, (void *)(intptr_t)st);
+    return b;
+}
+
 void ui_init(lv_display_t *disp)
 {
     (void)disp;
@@ -457,7 +577,8 @@ void ui_init(lv_display_t *disp)
     s_tile0 = lv_tileview_add_tile(tv, 0, 0, LV_DIR_RIGHT);
     lv_obj_t *tile_err   = lv_tileview_add_tile(tv, 1, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
     lv_obj_t *tile_radio = lv_tileview_add_tile(tv, 2, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
-    lv_obj_t *tile1      = lv_tileview_add_tile(tv, 3, 0, LV_DIR_LEFT);
+    lv_obj_t *tile_temp  = lv_tileview_add_tile(tv, 3, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
+    lv_obj_t *tile1      = lv_tileview_add_tile(tv, 4, 0, LV_DIR_LEFT);
 
     /* ---- tile 1: the refusal ledger --------------------------------------
      * Availability says how much we turned away; this says WHAT. Deliberately
@@ -504,7 +625,7 @@ void ui_init(lv_display_t *disp)
         }
     }
     mk_label(tile_err, 16, 444, &lv_font_montserrat_14, C_MUTED,
-             "swipe right for the radio, then the page - left for mission control");
+             "swipe right for the radio, temperature, then the page - left for mission control");
 
     /* ---- tile 2: THE RADIO - the gossip tail ---------------------------- */
     mk_label(tile_radio, 16, 12, &lv_font_montserrat_28, C_ACCENT, "THE RADIO");
@@ -520,9 +641,76 @@ void ui_init(lv_display_t *disp)
     lv_label_set_long_mode(s_radio_lbl, LV_LABEL_LONG_CLIP);
     lv_obj_set_width(s_radio_lbl, 748);
     mk_label(tile_radio, 16, 444, &lv_font_montserrat_14, C_MUTED,
-             "swipe right for the page the world sees - left for the ledger");
+             "swipe right for temperature, then the page - left for the ledger");
 
-    /* tile 1: the whole served page, vertically scrollable (mmapped from flash) */
+    /* ---- tile 3: TEMPERATURE - every die, the last 24 hours, 5-minute buckets ---- */
+    mk_label(tile_temp, 16, 12, &lv_font_montserrat_28, C_ACCENT, "TEMPERATURE");
+    mk_label(tile_temp, 16, 46, &lv_font_montserrat_14, C_DIM,
+             "every die in the rack - 24 hours, 5-minute buckets, UTC");
+    s_temp_btn[BIOHO_TEMP_MAX] = mk_mode_btn(tile_temp, 440, "max", BIOHO_TEMP_MAX);
+    s_temp_btn[BIOHO_TEMP_MIN] = mk_mode_btn(tile_temp, 556, "min", BIOHO_TEMP_MIN);
+    s_temp_btn[BIOHO_TEMP_AVG] = mk_mode_btn(tile_temp, 672, "avg", BIOHO_TEMP_AVG);
+    temp_set_mode(BIOHO_TEMP_AVG);
+    s_temp_clock = mk_label(tile_temp, 400, 54, &lv_font_montserrat_14, C_DIM,
+                            "no clock yet - waiting for a blade's time beacon");
+    lv_obj_set_width(s_temp_clock, 384);
+    lv_obj_set_style_text_align(s_temp_clock, LV_TEXT_ALIGN_RIGHT, 0);
+    {
+        s_temp_hist = heap_caps_calloc(1, sizeof(*s_temp_hist), MALLOC_CAP_SPIRAM);
+        assert(s_temp_hist);
+        lv_obj_t *card = mk_card(tile_temp, 12, TEMP_CARD_Y, 776, 364);
+        s_temp_cap = mk_label(card, 10, 8, &lv_font_montserrat_14, C_DIM, "LAST 24 HOURS");
+        s_temp_chart = lv_chart_create(card);
+        lv_obj_set_pos(s_temp_chart, TEMP_CH_X, TEMP_CH_Y);
+        lv_obj_set_size(s_temp_chart, TEMP_CH_W, TEMP_CH_H);
+        lv_chart_set_type(s_temp_chart, LV_CHART_TYPE_LINE);
+        lv_chart_set_point_count(s_temp_chart, BIOHO_TEMP_BUCKETS);
+        lv_chart_set_range(s_temp_chart, LV_CHART_AXIS_PRIMARY_Y, TEMP_Y_MIN_C10, TEMP_Y_MAX_C10);
+        lv_chart_set_div_line_count(s_temp_chart, TEMP_Y_LABELS, 0);
+        lv_obj_set_style_bg_color(s_temp_chart, lv_color_hex(C_CARD2), 0);
+        lv_obj_set_style_border_width(s_temp_chart, 0, 0);
+        lv_obj_set_style_pad_all(s_temp_chart, 0, LV_PART_MAIN);
+        lv_obj_set_style_line_color(s_temp_chart, lv_color_hex(C_BORDER), LV_PART_MAIN);
+        lv_obj_set_style_size(s_temp_chart, 0, 0, LV_PART_INDICATOR);
+        lv_obj_set_style_line_width(s_temp_chart, 2, LV_PART_ITEMS);
+        for (int i = 0; i < BIOHO_TEMP_NODES; i++) {
+            s_temp_y[i] = heap_caps_calloc(BIOHO_TEMP_BUCKETS, sizeof(int32_t), MALLOC_CAP_SPIRAM);
+            assert(s_temp_y[i]);
+            s_temp_ser[i] = lv_chart_add_series(s_temp_chart, lv_color_hex(TEMP_COLOR[i]), LV_CHART_AXIS_PRIMARY_Y);
+            lv_chart_set_series_ext_y_array(s_temp_chart, s_temp_ser[i], s_temp_y[i]);
+        }
+        for (int i = 0; i < TEMP_Y_LABELS; i++) {
+            int32_t v = TEMP_Y_MIN_C10 + i * 100;
+            int y = TEMP_CH_Y + TEMP_CH_H
+                    - (int)(((int64_t)TEMP_CH_H * (v - TEMP_Y_MIN_C10)) / (TEMP_Y_MAX_C10 - TEMP_Y_MIN_C10)) - 8;
+            lv_obj_t *yl = mk_label(card, TEMP_CH_X - 38, y, &lv_font_montserrat_14, C_MUTED, "");
+            lv_label_set_text_fmt(yl, "%ld", (long)(v / 10));
+            lv_obj_set_width(yl, 30);
+            lv_obj_set_style_text_align(yl, LV_TEXT_ALIGN_RIGHT, 0);
+        }
+        for (int i = 0; i < TEMP_XTICKS_MAX; i++) {
+            s_temp_xlbl[i] = mk_label(card, TEMP_CH_X, TEMP_CH_Y + TEMP_CH_H + 4, &lv_font_montserrat_14, C_MUTED, "");
+            lv_obj_set_width(s_temp_xlbl[i], 40);
+            lv_obj_set_style_text_align(s_temp_xlbl[i], LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_add_flag(s_temp_xlbl[i], LV_OBJ_FLAG_HIDDEN);
+        }
+        vTaskDelay(1);
+        for (int i = 0; i < BIOHO_TEMP_NODES; i++) {
+            int x = TEMP_CH_X + i * 118;
+            lv_obj_t *sw = lv_obj_create(card);
+            lv_obj_set_pos(sw, x, 334);
+            lv_obj_set_size(sw, 12, 12);
+            lv_obj_set_style_bg_color(sw, lv_color_hex(TEMP_COLOR[i]), 0);
+            lv_obj_set_style_border_width(sw, 0, 0);
+            lv_obj_set_style_radius(sw, 2, 0);
+            lv_obj_remove_flag(sw, LV_OBJ_FLAG_SCROLLABLE);
+            mk_label(card, x + 18, 330, &lv_font_montserrat_14, C_DIM, temp_node_name(bioho_temp_slot_id((unsigned)i)));
+        }
+    }
+    mk_label(tile_temp, 16, 444, &lv_font_montserrat_14, C_MUTED,
+             "swipe right for the page the world sees - left for the radio");
+
+    /* tile 4: the whole served page, vertically scrollable (mmapped from flash) */
     const void *page_px = NULL;
     const esp_partition_t *pp = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, 0x40, "page");
     if (pp) {
@@ -749,7 +937,7 @@ void ui_init(lv_display_t *disp)
 
     /* ---- tile 0: footer = the blank switch ---- */
     lv_obj_t *foot = mk_label(s_tile0, 12, FOOT_Y + 4, &lv_font_montserrat_14, C_MUTED,
-                              "tap - screen off    hold the flag 4s - ota    swipe left - ledger, radio, the page    " __DATE__);
+                              "tap - screen off    hold the flag 4s - ota    swipe left - ledger, radio, temperature, the page    " __DATE__);
     lv_obj_set_width(foot, 776);
     lv_obj_add_flag(foot, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_ext_click_area(foot, 10);
@@ -1052,6 +1240,31 @@ void ui_update(const swarm_snap_entry_t *e, int n, uint8_t leader_id)
                 record_save();
                 last_save_us = esp_timer_get_time();
             }
+        }
+    }
+
+    /* fold every die reading into its UTC bucket, then redraw the tile */
+    {
+        uint32_t now_s = (uint32_t)time(NULL);
+        if (s_temp_hist && bioho_time_sane(now_s)) {
+            for (int i = 0; i < n; i++) {
+                if (!s[i].alive || s[i].temp_c10 == VITALS_TEMP_NONE) continue;
+                int slot = bioho_temp_slot(s[i].id);
+                if (slot >= 0) bioho_temp_record(s_temp_hist, (unsigned)slot, now_s, s[i].temp_c10);
+            }
+            if (now_s - s_temp_drawn_s >= TEMP_REDRAW_S) {
+                temp_render(now_s);
+                struct tm tm;
+                time_t t = (time_t)now_s;
+                gmtime_r(&t, &tm);
+                uint8_t src = swarm_clock_source();
+                if (src) lv_label_set_text_fmt(s_temp_clock, "%02d:%02d UTC - clock from %s's beacon",
+                                               tm.tm_hour, tm.tm_min, temp_node_name(src));
+                else     lv_label_set_text_fmt(s_temp_clock, "%02d:%02d UTC - clock kept from the last boot",
+                                               tm.tm_hour, tm.tm_min);
+            }
+        } else if (s_temp_clock) {
+            lv_label_set_text(s_temp_clock, "no clock yet - waiting for a blade's time beacon");
         }
     }
 

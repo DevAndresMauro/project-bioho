@@ -1,11 +1,6 @@
 # Bill of materials
 
-Everything the fleet needs, as built now. The shell is the rack. The plate
-on the switch is the bohío, and the four cimarrones sit in it as bare boards,
-soldered to their USB-C breakouts. The 5 V rail is the GST60A and the fused
-stripboard. The UGREEN charger and the Tenda SG108 are not part of this build.
-
-Hardware detail: [`docs/hardware/`](docs/hardware/). Printable geometry:
+Everything the fleet needs, as built now. The shell is the rack. The plate on the switch is the bohío, and the four cimarrones sit in it as bare boards, soldered to their USB-C breakouts. The 5 V rail is the GST60A and the fused stripboard. The UGREEN charger and the Tenda SG108 are not part of this build. Hardware detail: [`docs/hardware/`](docs/hardware/). Printable geometry:  
 [`hardware/README.md`](hardware/README.md).
 
 ## 1. Compute

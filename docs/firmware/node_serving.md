@@ -60,6 +60,7 @@ picked, so it cannot identify a blade.
 | backend | `GET /` | the page, br or gz, ETag + 304, build/page stamps |
 | | `GET /favicon.ico` | br / gz / identity, 1-week cache |
 | | `GET /roster` | live fleet JSON - **no addresses, ever**; cross-origin refused; `no-store` |
+| | `GET /temps` | 24 h of die temperature, six nodes, 5-minute UTC buckets, max/min/avg; null where this blade heard nothing; cross-origin refused; `no-store` |
 | | `GET /og.png`, `/llms.txt`, `/robots.txt` | static, hard-cached |
 | 8443 | `POST /ota` | key-gated, fail-closed variant guard, trial on the far side ([`ota_deployments.md`](ota_deployments.md)) |
 | | `GET /roster` | the public view **plus** each node's address, boot cause, heap floors, die temperature, `on_trial` |
