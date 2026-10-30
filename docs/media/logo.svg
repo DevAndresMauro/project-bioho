@@ -1,1 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 300" width="840" height="300" role="img" aria-label="BIOHÓ"><rect width="840" height="300" rx="24" fill="#070907"/><rect x="1" y="1" width="838" height="298" rx="23" fill="none" stroke="#242e24" stroke-width="2"/><circle cx="255.0" cy="92" r="26" fill="#43e86a" opacity="0.10"/><circle cx="255.0" cy="92" r="15" fill="#43e86a" opacity="0.22"/><circle cx="255.0" cy="92" r="8" fill="#43e86a"/><circle cx="321.0" cy="92" r="26" fill="#e8e6e3" opacity="0.10"/><circle cx="321.0" cy="92" r="15" fill="#e8e6e3" opacity="0.22"/><circle cx="321.0" cy="92" r="8" fill="#e8e6e3"/><circle cx="387.0" cy="92" r="26" fill="#e8e6e3" opacity="0.10"/><circle cx="387.0" cy="92" r="15" fill="#e8e6e3" opacity="0.22"/><circle cx="387.0" cy="92" r="8" fill="#e8e6e3"/><circle cx="453.0" cy="92" r="26" fill="#e8e6e3" opacity="0.10"/><circle cx="453.0" cy="92" r="15" fill="#e8e6e3" opacity="0.22"/><circle cx="453.0" cy="92" r="8" fill="#e8e6e3"/><circle cx="519.0" cy="92" r="26" fill="#4d7de0" opacity="0.10"/><circle cx="519.0" cy="92" r="15" fill="#4d7de0" opacity="0.22"/><circle cx="519.0" cy="92" r="8" fill="#4d7de0"/><circle cx="585.0" cy="92" r="26" fill="#a05de0" opacity="0.10"/><circle cx="585.0" cy="92" r="15" fill="#a05de0" opacity="0.22"/><circle cx="585.0" cy="92" r="8" fill="#a05de0"/><rect x="221.0" y="88" width="398" height="8" rx="4" fill="#15151b" stroke="#242e24" stroke-width="1"/><circle cx="255.0" cy="92" r="8" fill="#43e86a"/><circle cx="321.0" cy="92" r="8" fill="#e8e6e3"/><circle cx="387.0" cy="92" r="8" fill="#e8e6e3"/><circle cx="453.0" cy="92" r="8" fill="#e8e6e3"/><circle cx="519.0" cy="92" r="8" fill="#4d7de0"/><circle cx="585.0" cy="92" r="8" fill="#a05de0"/><text x="420.0" y="204" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="58" font-weight="700" fill="#e6c229" text-anchor="middle" letter-spacing="0.16em">BIOHÓ</text><text x="420.0" y="248" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="17" fill="#9a98a0" text-anchor="middle" letter-spacing="0.06em">a website served from six microcontrollers</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 300" width="840" height="300" role="img" aria-label="project biohó">
+  <rect width="840" height="300" rx="24" fill="#070907"/>
+  <rect x="1" y="1" width="838" height="298" rx="23" fill="none" stroke="#242e24" stroke-width="2"/>
+  <!-- six fleet slots, left to right: t1 blades through t6 cabildo -->
+  <g fill="none">
+    <circle cx="255" cy="92" r="26" fill="#e6c229" opacity="0.10"/>
+    <circle cx="255" cy="92" r="15" fill="#e6c229" opacity="0.22"/>
+    <circle cx="321" cy="92" r="26" fill="#43e86a" opacity="0.10"/>
+    <circle cx="321" cy="92" r="15" fill="#43e86a" opacity="0.22"/>
+    <circle cx="387" cy="92" r="26" fill="#ffb020" opacity="0.10"/>
+    <circle cx="387" cy="92" r="15" fill="#ffb020" opacity="0.22"/>
+    <circle cx="453" cy="92" r="26" fill="#e8e6e3" opacity="0.10"/>
+    <circle cx="453" cy="92" r="15" fill="#e8e6e3" opacity="0.22"/>
+    <circle cx="519" cy="92" r="26" fill="#3b6cff" opacity="0.10"/>
+    <circle cx="519" cy="92" r="15" fill="#3b6cff" opacity="0.22"/>
+    <circle cx="585" cy="92" r="26" fill="#a06bff" opacity="0.10"/>
+    <circle cx="585" cy="92" r="15" fill="#a06bff" opacity="0.22"/>
+  </g>
+  <rect x="221" y="88" width="398" height="8" rx="4" fill="#0e120e" stroke="#242e24" stroke-width="1"/>
+  <circle cx="255" cy="92" r="8" fill="#e6c229"/>
+  <circle cx="321" cy="92" r="8" fill="#43e86a"/>
+  <circle cx="387" cy="92" r="8" fill="#ffb020"/>
+  <circle cx="453" cy="92" r="8" fill="#e8e6e3"/>
+  <circle cx="519" cy="92" r="8" fill="#3b6cff"/>
+  <circle cx="585" cy="92" r="8" fill="#a06bff"/>
+  <text x="420" y="198" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="46" font-weight="700" fill="#e6c229" text-anchor="middle" letter-spacing="0.06em">project biohó</text>
+  <text x="420" y="246" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" fill="#7a7f78" text-anchor="middle" letter-spacing="0.06em">a website served from six microcontrollers</text>
+</svg>

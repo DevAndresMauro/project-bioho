@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/media/logo.svg" width="560" alt="BIOHÓ - a website served from six microcontrollers">
+<img src="docs/media/logo.svg" width="560" alt="project biohó - a website served from six microcontrollers">
 
 <br>
 
